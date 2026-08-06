@@ -9,6 +9,7 @@
   var RENDERERS = {
     home: function () { UI.renderHome(); },
     learn: function () { UI.renderLearn(); },
+    chart: function () { UI.renderChart(); },
     practice: function () { UI.renderPractice(); },
     quiz: function () { UI.renderQuiz(); }
   };

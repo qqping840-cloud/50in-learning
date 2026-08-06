@@ -45,6 +45,8 @@
     // 学习页
     learnRow: null,          // 当前学习的行 id
     learnIndex: 0,           // 行内索引
+    // 音表页
+    chartType: 'seion',      // seion/dakuon/handakuon/yoon
     // 练习页
     practiceMode: 'forward', // forward=看假名想读音, reverse=听发音想字形
     practiceKana: null,      // 当前卡片假名
@@ -130,7 +132,7 @@
   // ---------- 页面切换 ----------
 
   function showPage(pageName) {
-    ['home', 'learn', 'practice', 'quiz'].forEach(function (p) {
+    ['home', 'learn', 'chart', 'practice', 'quiz'].forEach(function (p) {
       var page = el('page-' + p);
       if (page) page.classList.toggle('active', p === pageName);
     });
@@ -517,12 +519,75 @@
     });
   }
 
+  // ---------- 50音表页 ----------
+
+  // 表格分组：清音行序 / 浊音行序 / 拗音行序
+  var CHART_GROUPS = {
+    seion:    ['a','ka','sa','ta','na','ha','ma','ya','ra','wa','n'],
+    dakuon:   ['ga','za','da','ba'],
+    handakuon:['pa'],
+    yoon:     ['kya','sha','cha','nya','hya','mya','rya','gya','ja','bya','pya']
+  };
+
+  function renderChart() {
+    var tabs = el('chart-tabs');
+    var table = el('chart-table');
+    if (!tabs || !table) return;
+
+    if (!state.chartType) state.chartType = 'seion';
+    var type = state.chartType;
+
+    // 切换标签
+    tabs.innerHTML =
+      '<button class="chart-tab' + (type === 'seion' ? ' active' : '') + '" data-type="seion">清音</button>' +
+      '<button class="chart-tab' + (type === 'dakuon' ? ' active' : '') + '" data-type="dakuon">浊音</button>' +
+      '<button class="chart-tab' + (type === 'handakuon' ? ' active' : '') + '" data-type="handakuon">半浊音</button>' +
+      '<button class="chart-tab' + (type === 'yoon' ? ' active' : '') + '" data-type="yoon">拗音</button>';
+
+    // 行分组渲染
+    var rows = CHART_GROUPS[type] || CHART_GROUPS.seion;
+    var html = '<div class="chart-grid">';
+    rows.forEach(function (row) {
+      var kanaList = getKanaByRow(row);
+      if (!kanaList.length) return;
+      var info = ROW_INFO[row];
+      html += '<div class="chart-row">';
+      html += '<div class="chart-row-label">' + esc(info.name) + '</div>';
+      kanaList.forEach(function (k) {
+        html +=
+          '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '" data-romaji="' + esc(k.romaji) + '">' +
+            '<span class="chart-hiragana">' + esc(k.hiragana) + '</span>' +
+            '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
+          '</button>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+    table.innerHTML = html;
+
+    // 点击发音
+    Array.prototype.forEach.call(table.querySelectorAll('.chart-cell'), function (cell) {
+      cell.onclick = function () {
+        speak(cell.getAttribute('data-hiragana'));
+      };
+    });
+
+    // 标签切换
+    Array.prototype.forEach.call(tabs.querySelectorAll('.chart-tab'), function (btn) {
+      btn.onclick = function () {
+        state.chartType = btn.getAttribute('data-type');
+        renderChart();
+      };
+    });
+  }
+
   // ---------- 导出 ----------
 
   window.UI = {
     showPage: showPage,
     renderHome: renderHome,
     renderLearn: renderLearn,
+    renderChart: renderChart,
     renderPractice: renderPractice,
     renderQuiz: renderQuiz,
     speak: speak,
