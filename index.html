@@ -1,0 +1,79 @@
+<!-- ============================================================
+  50音学堂 —— 日语50音学习网页应用
+  结构：首页 / 学习 / 练习 / 测验 四个页面，底部导航切换
+  样式：css/style.css
+  脚本：js/ 目录下 5 个文件，按依赖顺序加载
+============================================================ -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>50音学堂</title>
+  <!-- Google Fonts：M PLUS Rounded 1c（用于假名显示，圆润可爱） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- 应用样式 -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部标题栏 -->
+    <header id="header">
+      <h1>50音学堂</h1>
+      <div id="streak-display"><!-- 连续学习 X 天 --></div>
+    </header>
+
+    <!-- 主内容区：4个页面容器，同时只显示一个 -->
+    <main id="main">
+      <!-- 首页 -->
+      <div id="page-home" class="page active">
+        <div class="home-left">
+          <div id="progress-overview"><!-- 总进度环 + 已掌握/学习中/未学 数字 --></div>
+          <div id="today-tasks"><!-- 今日任务卡片：复习X个 + 新学Y个 --></div>
+        </div>
+        <div id="row-map"><!-- 学习路径地图：27行按顺序排列，显示解锁状态 --></div>
+      </div>
+
+      <!-- 学习页 -->
+      <div id="page-learn" class="page">
+        <div id="learn-header"><!-- 当前行名 + 进度 --></div>
+        <div id="kana-card-display"><!-- 假名卡片：平假名+片假名+罗马音+发音按钮 --></div>
+        <div id="learn-controls"><!-- 上一个/下一个/学会了 按钮 --></div>
+      </div>
+
+      <!-- 练习页 -->
+      <div id="page-practice" class="page">
+        <div id="practice-mode-switch"><!-- 正向/反向 切换 --></div>
+        <div id="flashcard"><!-- 翻卡区域，点击翻面 --></div>
+        <div id="practice-controls"><!-- 答对/答错 按钮 --></div>
+      </div>
+
+      <!-- 测验页 -->
+      <div id="page-quiz" class="page">
+        <div id="quiz-header"><!-- 第X题/共Y题 + 得分 --></div>
+        <div id="quiz-question"><!-- 题目区域 --></div>
+        <div id="quiz-options"><!-- 4个选项按钮 --></div>
+        <div id="quiz-feedback"><!-- 答题反馈 --></div>
+        <div id="quiz-result"><!-- 测验结束总结 --></div>
+      </div>
+    </main>
+
+    <!-- 底部导航栏 -->
+    <nav id="bottom-nav">
+      <button class="nav-btn active" data-page="home">🏠<span>首页</span></button>
+      <button class="nav-btn" data-page="learn">📖<span>学习</span></button>
+      <button class="nav-btn" data-page="practice">🔄<span>练习</span></button>
+      <button class="nav-btn" data-page="quiz">✏️<span>测验</span></button>
+    </nav>
+  </div>
+
+  <!-- 脚本按依赖顺序加载：data → storage → srs → ui → app -->
+  <script src="js/data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
