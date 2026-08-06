@@ -788,6 +788,21 @@ button {
   text-align: center;
 }
 
+/* 行内主体：可含多排（合并时一排，分页时一排） */
+.chart-row-bodies {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 一排假名：flex 等宽排列 */
+.chart-subrow {
+  display: flex;
+  gap: 6px;
+}
+
 /* 假名单元格 */
 .chart-cell {
   flex: 1;
