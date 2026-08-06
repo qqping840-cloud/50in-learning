@@ -1122,20 +1122,31 @@ button {
   color: var(--color-primary);
 }
 
-/* 假名序列行 */
-.typing-kana-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
+/* 横向滚动容器：完成滚出，前方进入 */
+.typing-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  white-space: nowrap;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  padding: 24px 20px;
+  padding: 24px 0;
   margin-bottom: 14px;
 }
 
-.typing-kana {
+.typing-scroll::-webkit-scrollbar { display: none; }
+
+/* 假名序列行：横向单行 */
+.typing-kana-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 40px; /* 左右留白让当前假名能居中 */
+}
+
+.typing-token {
   position: relative;
   font-family: var(--font-kana);
   font-size: 34px;
@@ -1143,17 +1154,34 @@ button {
   line-height: 1.2;
   color: var(--color-text-secondary);
   transition: all 0.15s;
+  flex-shrink: 0;
+  text-align: center;
 }
 
-.typing-kana.done { color: var(--color-success); }
+/* 标点/空格：灰色窄显示 */
+.typing-token.punct {
+  font-size: 20px;
+  color: var(--color-text-secondary);
+  opacity: 0.5;
+  min-width: 12px;
+  font-family: var(--font-body);
+}
 
-.typing-kana.current {
+/* 词间空格：更宽的间隙（帮助分词） */
+.typing-token.word-space {
+  min-width: 22px;
+  background: transparent;
+}
+
+.typing-token.done { color: var(--color-success); }
+
+.typing-token.current {
   color: var(--color-primary);
   transform: scale(1.25);
   animation: pulse 2s infinite;
 }
 
-.typing-kana.todo { opacity: 0.45; }
+.typing-token.todo { opacity: 0.6; }
 
 .typing-hint {
   display: block;

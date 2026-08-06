@@ -55,6 +55,8 @@
     if (EXTRA_KANA[ch]) return EXTRA_KANA[ch];
     return null;
   }
+  // 词间微空格判断
+  function isWordSpace(ch) { return ch === ' '; }
 
   // ---------- API ----------
   function apiGet(url) {
@@ -382,13 +384,24 @@
         if (window.UI && window.UI.speak) window.UI.speak(result.char);
       }
       // 完成全部假名 → 显示结果
-      if (result.type === 'progress' && result.pos >= result.total) {
+      if (result.type === 'progress' && result.completed >= result.total) {
         TypingUI.showResult();
       }
       // 引擎自身报告 complete
       if (result.type === 'complete') {
         TypingUI.showResult();
       }
+    },
+
+    // 滚动到当前假名（保持居中，产生「完成滚出、前方进入」效果）
+    scrollToCurrent: function () {
+      var wrap = el('reading-typing-wrap');
+      if (!wrap) return;
+      var cur = wrap.querySelector('.typing-token.current');
+      var scroll = el('typing-scroll');
+      if (!cur || !scroll) return;
+      var targetLeft = cur.offsetLeft - scroll.clientWidth / 2 + cur.clientWidth / 2;
+      scroll.scrollLeft = Math.max(0, targetLeft);
     },
 
     // 渲染当前状态
@@ -402,23 +415,40 @@
       // 顶栏：返回阅读 / 提示开关
       html += '<div class="typing-topbar">' +
         '<button class="btn btn-secondary" id="btn-typing-back">返回阅读</button>' +
-        '<span class="typing-progress">' + st.pos + ' / ' + st.total + '</span>' +
+        '<span class="typing-progress">' + st.completed + ' / ' + st.total + '</span>' +
         '<button class="btn btn-secondary" id="btn-typing-hint">' + (this.hintOn ? '隐藏提示' : '显示提示') + '</button>' +
       '</div>';
 
-      // 假名序列：逐个显示，当前高亮，完成变绿
-      html += '<div class="typing-kana-row">';
-      st.kanaList.forEach(function (item, idx) {
-        var cls = 'typing-kana';
-        if (idx < st.pos) cls += ' done';
-        else if (idx === st.pos) cls += ' current';
-        else cls += ' todo';
-        var hint = '';
-        if (idx === st.pos && TypingUI.hintOn) {
-          hint = '<span class="typing-hint">' + esc(item.romaji) + '</span>';
+      // 横向滚动假名序列：只渲染当前位置附近的窗口
+      html += '<div class="typing-scroll" id="typing-scroll">';
+      html += '<div class="typing-kana-row" id="typing-kana-row">';
+      var tokens = st.tokens;
+      // 找当前 kana 在 tokens 中的索引（pos 已经是下一个要打的 kana 或末尾）
+      var curIdx = st.pos;
+      // 渲染窗口：当前位置前 8 个到后 24 个 token
+      var start = Math.max(0, curIdx - 8);
+      var end = Math.min(tokens.length, curIdx + 24);
+      for (var i = start; i < end; i++) {
+        var item = tokens[i];
+        var cls = 'typing-token';
+        if (item.type === 'punct') {
+          // 标点/空格：灰色窄显示，词间空格加宽
+          cls += ' punct' + (isWordSpace(item.char) ? ' word-space' : '');
+        } else {
+          if (i < curIdx) cls += ' done';
+          else if (i === curIdx) cls += ' current';
+          else cls += ' todo';
+          var hint = '';
+          if (i === curIdx && TypingUI.hintOn) {
+            hint = '<span class="typing-hint">' + esc(item.romaji) + '</span>';
+          }
+          cls += ' kana';
+          html += '<span class="' + cls + '" data-pos="' + i + '">' + esc(item.char) + hint + '</span>';
+          continue;
         }
-        html += '<span class="' + cls + '">' + esc(item.char) + hint + '</span>';
-      });
+        html += '<span class="' + cls + '">' + esc(item.char) + '</span>';
+      }
+      html += '</div>';
       html += '</div>';
 
       // 当前输入缓冲显示
@@ -433,6 +463,9 @@
       html += window.Typing.renderKeyboard(this.activeKey, this.hintOn ? hintKey : null);
 
       wrap.innerHTML = html;
+
+      // 滚动到当前假名（居中）
+      this.scrollToCurrent();
 
       // 事件
       el('btn-typing-back').onclick = function () {

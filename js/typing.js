@@ -34,33 +34,46 @@
     'っ': ['xtsu', 'ltu', 'xtu', 'ltsu'] // 促音（单独出现时）
   };
 
-  // ---------- 文本解析：把平假名文本拆成假名序列 ----------
-  // 优先匹配双字符拗音（きゃ 等），再匹配单字符
+  // ---------- 文本解析：把文章拆成 token 序列 ----------
+  // token 类型：
+  //   { type:'kana', char, romaji }        需要打字的假名
+  //   { type:'punct', char }               标点/长音/空格，自动通过（不输入）
+  // 汉字：跳过（不显示不参与打字）
   function parseText(text) {
-    var kanaList = [];
+    var tokens = [];
     var i = 0;
     while (i < text.length) {
       var ch = text[i];
-      // 长音符号或非假名，直接跳过（不参与打字）
-      if (ch === 'ー' || ch === ' ') {
-        i++;
-        continue;
-      }
-      // 尝试双字符拗音
+      // 双字符拗音
       var two = text.substr(i, 2);
       if (KANA_MAP[two]) {
-        kanaList.push({ char: two, romaji: KANA_MAP[two] });
+        tokens.push({ type: 'kana', char: two, romaji: KANA_MAP[two] });
         i += 2;
         continue;
       }
       // 单字符假名
       if (KANA_MAP[ch]) {
-        kanaList.push({ char: ch, romaji: KANA_MAP[ch] });
+        tokens.push({ type: 'kana', char: ch, romaji: KANA_MAP[ch] });
+        i++;
+        continue;
       }
+      // 标点、长音、空格：保留为 punct（打字时自动通过）
+      if (PUNCT_CHARS.indexOf(ch) !== -1) {
+        tokens.push({ type: 'punct', char: ch });
+        i++;
+        continue;
+      }
+      // 其他（汉字等）：跳过
       i++;
     }
-    return kanaList;
+    return tokens;
   }
+
+  // 打字时自动通过的标点符号
+  var PUNCT_CHARS = [' ', 'ー', '、', '。', '，', '．', '！', '？', '…', '「', '」', '『', '』', '（', '）', '・', '：', '；'];
+
+  // 词间微空格：原文中的空格在渲染时用更宽的间距区分（视觉提示分词）
+  function isWordSpace(ch) { return ch === ' '; }
 
   // 判断输入流 buffer 是否匹配某个假名的目标罗马音
   // 返回 'done'（完整匹配）/ 'partial'（是前缀）/ 'miss'（不匹配）
@@ -82,24 +95,30 @@
    * @param {string} text 平假名文章
    */
   function createEngine(text) {
-    var kanaList = parseText(text);
+    var tokens = parseText(text);
     var pos = 0;
     var buffer = '';
     var startTime = Date.now();
     var stats = {}; // char -> { correct, wrong, totalTime }
     var errors = 0;
 
+    // 前进到下一个需要打字的 kana（跳过标点），返回是否成功
+    function advanceToKana() {
+      while (pos < tokens.length && tokens[pos].type !== 'kana') pos++;
+      return pos < tokens.length;
+    }
+    advanceToKana();
+
     // 当前假名的可接受拼写
     function currentTarget() {
-      var item = kanaList[pos];
-      if (!item) return null;
+      var item = tokens[pos];
+      if (!item || item.type !== 'kana') return null;
       return { char: item.char, romaji: item.romaji, aliases: ALIASES[item.char] || [] };
     }
 
     // 处理一次按键
-    // 返回 { type: 'progress'|'error'|'done'|'complete', target, buffer, char }
     function press(key) {
-      if (pos >= kanaList.length) return { type: 'complete' };
+      if (pos >= tokens.length) return { type: 'complete' };
       var t = currentTarget();
       var nextBuffer = buffer + key;
       var result = matchInput(t.romaji, nextBuffer, t.aliases);
@@ -107,17 +126,32 @@
       if (result === 'done') {
         recordResult(t.char, true);
         pos++;
+        advanceToKana(); // 跳过后面的标点
         buffer = '';
-        return { type: 'progress', char: t.char, target: t, buffer: '', pos: pos, total: kanaList.length };
+        return { type: 'progress', char: t.char, target: t, buffer: '', pos: pos, total: kanaCount() };
       }
       if (result === 'partial') {
         buffer = nextBuffer;
-        return { type: 'partial', char: t.char, target: t, buffer: buffer, pos: pos, total: kanaList.length };
+        return { type: 'partial', char: t.char, target: t, buffer: buffer, pos: pos, total: kanaCount() };
       }
-      // 不匹配：记一次错误，丢弃该键（保持 buffer 不变）
+      // 不匹配：记一次错误，丢弃该键
       recordResult(t.char, false);
       errors++;
-      return { type: 'error', char: t.char, target: t, buffer: buffer, pos: pos, total: kanaList.length };
+      return { type: 'error', char: t.char, target: t, buffer: buffer, pos: pos, total: kanaCount() };
+    }
+
+    // 需要打字的总假名数（不含标点）
+    function kanaCount() {
+      return tokens.filter(function (t) { return t.type === 'kana'; }).length;
+    }
+
+    // 已完成的假名数（pos 之前的 kana 数量）
+    function completedKana() {
+      var n = 0;
+      for (var i = 0; i < pos && i < tokens.length; i++) {
+        if (tokens[i].type === 'kana') n++;
+      }
+      return n;
     }
 
     function recordResult(char, ok) {
@@ -129,10 +163,11 @@
     // 当前状态（供 UI 渲染）
     function getState() {
       return {
-        kanaList: kanaList,
+        tokens: tokens,
         pos: pos,
         buffer: buffer,
-        total: kanaList.length,
+        total: kanaCount(),
+        completed: completedKana(),
         target: currentTarget(),
         errors: errors,
         elapsedMs: Date.now() - startTime,
@@ -145,11 +180,11 @@
       var elapsed = Date.now() - startTime;
       var correctChars = Object.keys(stats).filter(function (c) { return stats[c].correct > 0; });
       return {
-        total: kanaList.length,
-        completed: pos >= kanaList.length,
+        total: kanaCount(),
+        completed: completedKana() >= kanaCount(),
         errors: errors,
         elapsedMs: elapsed,
-        accuracy: kanaList.length ? Math.max(0, 1 - errors / kanaList.length) : 1,
+        accuracy: kanaCount() ? Math.max(0, 1 - errors / kanaCount()) : 1,
         // 弱项：错误率高的假名
         weak: correctChars.filter(function (c) {
           var s = stats[c];
