@@ -13,6 +13,16 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  // ---------- SVG 图标（统一设计语言：24×24 线性描边，currentColor 跟随文字色） ----------
+  var ICON_SPEAK =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M11 5 6 9H3v6h3l5 4V5z"/>' +
+      '<path d="M15.5 8.5a5 5 0 0 1 0 7"/>' +
+      '<path d="M18 6a8.5 8.5 0 0 1 0 12"/>' +
+    '</svg>';
+  var ICON_PLAY =
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
   // 洗牌（返回新数组）
   function shuffle(arr) {
     var a = arr.slice();
@@ -256,13 +266,19 @@
         '<div class="kana-char katakana">' + esc(kana.katakana) + '</div>' +
       '</div>' +
       '<div class="kana-romaji">' + esc(kana.romaji) + '</div>' +
-      '<button class="btn btn-speak" id="btn-learn-speak">🔊 发音</button>';
+      '<button class="btn btn-speak" id="btn-learn-speak" aria-label="发音">' + ICON_SPEAK + '</button>';
 
     // 控制按钮
     controls.innerHTML =
-      '<button class="btn btn-secondary" id="btn-learn-prev">◀ 上一个</button>' +
+      '<button class="btn btn-secondary" id="btn-learn-prev" aria-label="上一个">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>' +
+        '<span>上一个</span>' +
+      '</button>' +
       '<button class="btn btn-primary" id="btn-learn-know">学会了</button>' +
-      '<button class="btn btn-secondary" id="btn-learn-next">下一个 ▶</button>';
+      '<button class="btn btn-secondary" id="btn-learn-next" aria-label="下一个">' +
+        '<span>下一个</span>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' +
+      '</button>';
 
     // 事件绑定
     el('btn-learn-speak').onclick = function (e) {
@@ -323,7 +339,7 @@
     if (state.practiceMode === 'forward') {
       front = '<div class="flashcard-face"><div class="kana-char big">' + esc(kana.hiragana) + '</div></div>';
     } else {
-      front = '<div class="flashcard-face"><button class="btn btn-speak" id="btn-practice-speak">🔊 播放发音</button></div>';
+      front = '<div class="flashcard-face"><button class="btn btn-speak" id="btn-practice-speak" aria-label="播放发音">' + ICON_PLAY + '</button></div>';
     }
     back =
       '<div class="flashcard-face flashcard-back">' +
@@ -332,7 +348,7 @@
           '<div class="kana-char katakana">' + esc(kana.katakana) + '</div>' +
         '</div>' +
         '<div class="kana-romaji">' + esc(kana.romaji) + '</div>' +
-        '<button class="btn btn-speak" id="btn-practice-speak-back">🔊 发音</button>' +
+        '<button class="btn btn-speak" id="btn-practice-speak-back" aria-label="发音">' + ICON_SPEAK + '</button>' +
       '</div>';
     card.className = state.practiceFlipped ? 'flipped' : '';
     card.innerHTML =
@@ -453,7 +469,7 @@
     if (q.type === 0) {
       question.innerHTML = '<div class="quiz-prompt">这个假名怎么读？</div><div class="kana-char big">' + esc(q.kana.hiragana) + '</div>';
     } else if (q.type === 1) {
-      question.innerHTML = '<div class="quiz-prompt">听发音，选假名</div><button class="btn btn-speak" id="btn-quiz-speak">🔊 播放发音</button>';
+      question.innerHTML = '<div class="quiz-prompt">听发音，选假名</div><button class="btn btn-speak" id="btn-quiz-speak" aria-label="播放发音">' + ICON_PLAY + '</button>';
     } else {
       question.innerHTML = '<div class="quiz-prompt">' + esc(q.kana.romaji) + ' 是哪个假名？</div><div class="quiz-romaji big">' + esc(q.kana.romaji) + '</div>';
     }

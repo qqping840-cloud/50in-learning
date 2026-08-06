@@ -119,12 +119,16 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   padding: 6px 0;
-  font-size: 20px;
   color: var(--color-text-secondary);
   border-radius: var(--radius-md);
   transition: color 0.2s;
+}
+
+.nav-btn svg {
+  width: 24px;
+  height: 24px;
 }
 
 .nav-btn span {
@@ -133,6 +137,48 @@ button {
 }
 
 .nav-btn.active { color: var(--color-primary); }
+
+/* 发音按钮：青绿圆形图标按钮 */
+.btn-speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-top: 16px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--color-primary-dark);
+  transition: transform 0.2s;
+}
+
+.btn-speak svg {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.btn-speak:hover { transform: scale(1.05); }
+.btn-speak:active { transform: translateY(2px); box-shadow: none; }
+
+/* 学习页上一个/下一个按钮：箭头 SVG 跟随文字色 */
+#learn-controls .btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+#learn-controls .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* 测验页听音按钮居中 */
+#quiz-question .btn-speak { margin: 24px auto 0; }
 
 /* ---------- 5. .page 页面切换：默认隐藏，active 显示，淡入 0.3s ---------- */
 .page { display: none; }
