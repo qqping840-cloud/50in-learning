@@ -44,6 +44,18 @@
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+  // 特殊小假名补充映射（data.js 未收录，供阅读注音）
+  var EXTRA_KANA = {
+    'っ': 'xtsu', 'ゃ': 'ya', 'ゅ': 'yu', 'ょ': 'yo', 'ゎ': 'wa', 'ゔ': 'vu'
+  };
+  // 查假名罗马音：优先 getKana，其次补充映射
+  function kanaRomaji(ch) {
+    var k = getKana(ch);
+    if (k) return k.romaji;
+    if (EXTRA_KANA[ch]) return EXTRA_KANA[ch];
+    return null;
+  }
+
   // ---------- API ----------
   function apiGet(url) {
     return fetch(url).then(function (r) { return r.json(); });
@@ -59,10 +71,41 @@
   // ---------- 渲染主入口 ----------
   function render() {
     loadConfig();
+    renderLibrary();
     renderKeyConfig();
     renderTabs();
     renderArticleArea();
     bindGenerate();
+  }
+
+  // ---------- 内置精选文章 ----------
+  function renderLibrary() {
+    var box = el('reading-library');
+    if (!box) return;
+    var lib = window.LIBRARY || [];
+    var html = '<div class="reading-library-title">精选文章</div>';
+    html += '<div class="reading-library-grid">';
+    lib.forEach(function (item, idx) {
+      html +=
+        '<button class="reading-lib-card" data-idx="' + idx + '">' +
+          '<div class="reading-lib-title">' + esc(item.title) + '</div>' +
+          '<div class="reading-lib-meta">' +
+            '<span class="reading-lib-level">' + esc(item.level) + '</span>' +
+            (item.kana ? '<span class="reading-lib-kana">纯假名</span>' : '<span class="reading-lib-kanji">含汉字</span>') +
+          '</div>' +
+        '</button>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+
+    Array.prototype.forEach.call(box.querySelectorAll('.reading-lib-card'), function (card) {
+      card.onclick = function () {
+        var idx = parseInt(card.getAttribute('data-idx'), 10);
+        var item = lib[idx];
+        if (!item) return;
+        loadArticle(item.text);
+      };
+    });
   }
 
   // 生成按钮绑定
@@ -259,15 +302,25 @@
     var i = 0;
     while (i < state.article.length) {
       var ch = state.article[i];
-      // 从解析结果找这个位置的假名（用于点读发音）
-      var kana = getKana(ch);
-      if (kana) {
-        var romaji = kana.romaji;
+      // 优先匹配双字符拗音（きょ 等），与打字解析逻辑一致
+      var two = state.article.substr(i, 2);
+      var twoRomaji = (getKana(two) || EXTRA_KANA[two]) ? kanaRomaji(two) : null;
+      if (twoRomaji) {
+        html +=
+          '<span class="reading-char" data-kana="' + esc(two) + '">' +
+            '<ruby>' + esc(two) + '<rt>' + esc(twoRomaji) + '</rt></ruby>' +
+          '</span>';
+        i += 2;
+        continue;
+      }
+      // 单字符假名
+      var romaji = kanaRomaji(ch);
+      if (romaji) {
         html +=
           '<span class="reading-char" data-kana="' + esc(ch) + '">' +
             '<ruby>' + esc(ch) + '<rt>' + esc(romaji) + '</rt></ruby>' +
           '</span>';
-      } else if (ch === 'ー' || ch === ' ') {
+      } else if (ch === 'ー' || ch === ' ' || ch === '、' || ch === '。' || ch === '！' || ch === '？') {
         html += '<span class="reading-space">' + esc(ch) + '</span>';
       } else {
         // 汉字或其他：直接显示，无注音
@@ -442,17 +495,20 @@
   };
 
   // ---------- 导出 ----------
+  // 加载一篇文章（供精选文章/AI生成/测试复用）
+  function loadArticle(text) {
+    state.article = text;
+    state.parsed = window.Typing.parseText(text);
+    state.typingActive = false;
+    state.hideRomaji = false;
+    renderArticleArea();
+  }
+
+  // ---------- 导出 ----------
   window.Reading = {
     render: render,
     generate: generateArticle,
-    // 加载一篇文章（供打字/阅读测试与预设文章复用）
-    loadArticle: function (text) {
-      state.article = text;
-      state.parsed = window.Typing.parseText(text);
-      state.typingActive = false;
-      state.hideRomaji = false;
-      renderArticleArea();
-    }
+    loadArticle: loadArticle
   };
 
 })();

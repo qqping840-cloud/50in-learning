@@ -18,6 +18,13 @@
     window.KANA_DATA.forEach(function (k) {
       KANA_MAP[k.hiragana] = k.romaji;
     });
+    // 补充 data.js 未收录的特殊小假名（供阅读/打字解析）
+    KANA_MAP['っ'] = 'xtsu';
+    KANA_MAP['ゃ'] = 'ya';
+    KANA_MAP['ゅ'] = 'yu';
+    KANA_MAP['ょ'] = 'yo';
+    KANA_MAP['ゎ'] = 'wa';
+    KANA_MAP['ゔ'] = 'vu';
   })();
 
   // 可接受的替代拼写（标准输入法习惯）

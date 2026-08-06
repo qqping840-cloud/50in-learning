@@ -27,7 +27,7 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
   --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
-  --font-kana: 'M PLUS Rounded 1c', sans-serif;
+  --font-kana: 'M PLUS Rounded 1c', 'Yu Gothic', 'Hiragino Maru Gothic ProN', Meiryo, sans-serif;
   --font-body: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
 }
 
@@ -1292,3 +1292,124 @@ button {
   .vkbd-row { gap: 4px; }
   .reading-article { font-size: 22px; }
 }
+
+/* ---------- 20. 精选文章库 ---------- */
+.reading-library-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-bottom: 12px;
+}
+
+.reading-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.reading-lib-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reading-lib-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.reading-lib-card:active { transform: translateY(1px); }
+
+.reading-lib-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.reading-lib-meta {
+  display: flex;
+  gap: 6px;
+}
+
+.reading-lib-level,
+.reading-lib-kana,
+.reading-lib-kanji {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.reading-lib-level {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.reading-lib-kana {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.reading-lib-kanji {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+/* ---------- 21. AI 生成折叠区 ---------- */
+#reading-ai-box {
+  margin-top: 16px;
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+#reading-ai-box summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+#reading-ai-box summary::-webkit-details-marker { display: none; }
+
+.reading-ai-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.reading-ai-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+#reading-ai-box[open] summary { border-bottom: 1px solid var(--color-border); }
+
+#reading-ai-box .reading-key-box,
+#reading-ai-box .reading-tab-group {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+#reading-ai-box > div {
+  padding: 12px 20px;
+}
+
+#btn-reading-generate { margin: 12px 20px 20px; width: calc(100% - 40px); }
