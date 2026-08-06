@@ -1124,26 +1124,26 @@ button {
 
 /* 横向滚动容器：完成滚出，前方进入 */
 .typing-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: hidden;
   white-space: nowrap;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 24px 0;
   margin-bottom: 14px;
+  position: relative;
 }
 
-.typing-scroll::-webkit-scrollbar { display: none; }
-
-/* 假名序列行：横向单行 */
+/* 假名序列行：横向单行，translateX 平移实现滚动 */
 .typing-kana-row {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 40px; /* 左右留白让当前假名能居中 */
+  /* 左侧留出半视口宽度，让第一个假名初始居中（参考 type-kana 的 margin-left 方案） */
+  padding-left: calc(50% - 27px);
+  padding-right: 60px;
+  will-change: transform;
+  transition: transform 0.2s ease;
 }
 
 .typing-token {

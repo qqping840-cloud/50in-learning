@@ -393,18 +393,27 @@
       }
     },
 
-    // 滚动到当前假名（保持居中，产生「完成滚出、前方进入」效果）
+    // 平移距离（px）：已完成 token 的累积宽度，用于 translateX
+    shiftPx: 0,
+
+    // 滚动到当前假名（居中）——用 translateX 平移整行，保证滚动稳定
     scrollToCurrent: function () {
       var wrap = el('reading-typing-wrap');
       if (!wrap) return;
-      var cur = wrap.querySelector('.typing-token.current');
+      var row = el('typing-kana-row');
       var scroll = el('typing-scroll');
-      if (!cur || !scroll) return;
-      var targetLeft = cur.offsetLeft - scroll.clientWidth / 2 + cur.clientWidth / 2;
-      scroll.scrollLeft = Math.max(0, targetLeft);
+      if (!row || !scroll) return;
+      var cur = wrap.querySelector('.typing-token.current');
+      if (!cur) {
+        this.shiftPx = 0;
+        row.style.transform = 'translateX(0px)';
+        return;
+      }
+      // 强制当前假名居中：允许负平移（把行右移让前方内容进入）
+      var curCenter = cur.offsetLeft + cur.offsetWidth / 2;
+      this.shiftPx = curCenter - scroll.clientWidth / 2;
+      row.style.transform = 'translateX(' + (-this.shiftPx) + 'px)';
     },
-
-    // 渲染当前状态
     render: function () {
       var wrap = el('reading-typing-wrap');
       if (!wrap || !this.engine) return;
@@ -419,27 +428,23 @@
         '<button class="btn btn-secondary" id="btn-typing-hint">' + (this.hintOn ? '隐藏提示' : '显示提示') + '</button>' +
       '</div>';
 
-      // 横向滚动假名序列：只渲染当前位置附近的窗口
+      // 横向滚动假名序列：完整渲染整行，用 translateX 平移
+      // （参考 type-kana 的 margin-left 平移方案，保证滚动稳定不错位）
       html += '<div class="typing-scroll" id="typing-scroll">';
-      html += '<div class="typing-kana-row" id="typing-kana-row">';
+      html += '<div class="typing-kana-row" id="typing-kana-row" style="transform: translateX(' + (-this.shiftPx) + 'px)">';
       var tokens = st.tokens;
-      // 找当前 kana 在 tokens 中的索引（pos 已经是下一个要打的 kana 或末尾）
-      var curIdx = st.pos;
-      // 渲染窗口：当前位置前 8 个到后 24 个 token
-      var start = Math.max(0, curIdx - 8);
-      var end = Math.min(tokens.length, curIdx + 24);
-      for (var i = start; i < end; i++) {
+      for (var i = 0; i < tokens.length; i++) {
         var item = tokens[i];
         var cls = 'typing-token';
         if (item.type === 'punct') {
           // 标点/空格：灰色窄显示，词间空格加宽
           cls += ' punct' + (isWordSpace(item.char) ? ' word-space' : '');
         } else {
-          if (i < curIdx) cls += ' done';
-          else if (i === curIdx) cls += ' current';
+          if (i < st.pos) cls += ' done';
+          else if (i === st.pos) cls += ' current';
           else cls += ' todo';
           var hint = '';
-          if (i === curIdx && TypingUI.hintOn) {
+          if (i === st.pos && TypingUI.hintOn) {
             hint = '<span class="typing-hint">' + esc(item.romaji) + '</span>';
           }
           cls += ' kana';
@@ -464,7 +469,7 @@
 
       wrap.innerHTML = html;
 
-      // 滚动到当前假名（居中）
+      // 滚动到当前假名（居中）—— 重建 DOM 后重新计算
       this.scrollToCurrent();
 
       // 事件
