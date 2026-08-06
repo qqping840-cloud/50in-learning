@@ -791,10 +791,18 @@ button {
   transform: translateY(2px);
 }
 
-.chart-hiragana {
+.chart-kana-main {
   font-family: var(--font-kana);
   font-size: 26px;
   font-weight: 700;
+  line-height: 1.1;
+}
+
+.chart-kana-sub {
+  font-family: var(--font-kana);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
   line-height: 1.1;
 }
 
@@ -807,6 +815,7 @@ button {
 /* 移动端适配 */
 @media (max-width: 480px) {
   .chart-row-label { width: 48px; font-size: 12px; }
-  .chart-hiragana { font-size: 22px; }
+  .chart-kana-main { font-size: 22px; }
+  .chart-kana-sub { font-size: 13px; }
   .chart-romaji { font-size: 10px; }
 }

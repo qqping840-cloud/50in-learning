@@ -556,7 +556,8 @@
       kanaList.forEach(function (k) {
         html +=
           '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '" data-romaji="' + esc(k.romaji) + '">' +
-            '<span class="chart-hiragana">' + esc(k.hiragana) + '</span>' +
+            '<span class="chart-kana-main">' + esc(k.hiragana) + '</span>' +
+            '<span class="chart-kana-sub">' + esc(k.katakana) + '</span>' +
             '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
           '</button>';
       });
