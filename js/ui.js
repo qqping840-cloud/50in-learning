@@ -86,57 +86,35 @@
   }
   // 立即尝试 + 监听异步加载完成
   loadVoices();
-
-  // 预热引擎：静默发音一次，让浏览器加载语音引擎
-  // 注意：不使用 pause()/resume()（Chrome 已知 bug，会让后续发音挂起）
-  var warmed = false;
-  function warmUp() {
-    if (warmed || !window.speechSynthesis) return;
-    var voices = window.speechSynthesis.getVoices();
-    if (!voices || !voices.length) return; // voices 没就绪就先不预热
-    warmed = true;
-    try {
-      var u = new SpeechSynthesisUtterance(' ');
-      if (jaVoice) { u.voice = jaVoice; u.lang = jaVoice.lang; }
-      else u.lang = 'ja-JP';
-      u.volume = 0;
-      window.speechSynthesis.speak(u);
-      // 立即 cancel，只唤醒引擎不真正发声
-      setTimeout(function () { window.speechSynthesis.cancel(); }, 100);
-    } catch (e) { /* ignore */ }
-  }
-  // 页面加载后立即预热（不等用户点击发音），彻底消除首次发音延迟
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(warmUp, 300); });
-  } else {
-    setTimeout(warmUp, 300);
-  }
-  // voices 加载完成后再次预热，确保语音引擎真正就绪
   if (window.speechSynthesis) {
-    window.speechSynthesis.onvoiceschanged = function () {
-      loadVoices();
-      setTimeout(warmUp, 100);
-    };
+    window.speechSynthesis.onvoiceschanged = loadVoices;
   }
 
   // 防止快速连续点击时语音堆积/卡死
   var speakTimer = null;
+  var curAudio = null;
   function speak(text) {
-    if (!window.speechSynthesis) return;
     if (speakTimer) clearTimeout(speakTimer);
-    window.speechSynthesis.cancel(); // 先取消，避免重叠
+    // 1. 优先播放本地音频（assets/audio/<假名>.mp3），标准日语发音且秒出
+    try {
+      if (curAudio) { curAudio.pause(); curAudio = null; }
+      var a = new Audio('assets/audio/' + encodeURIComponent(text) + '.mp3');
+      curAudio = a;
+      a.play();
+      return;
+    } catch (e) { /* 播放失败则走 TTS 兜底 */ }
+    // 2. 兜底：浏览器 TTS
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
     if (jaVoice) {
       u.voice = jaVoice;
-      u.lang = jaVoice.lang; // lang 跟随所选 voice，避免不匹配被忽略
+      u.lang = jaVoice.lang;
     } else {
       u.lang = 'ja-JP';
     }
     u.rate = 0.85;
-    // 稍延迟再 speak，规避 Chrome cancel 后立即 speak 被吞的 bug
-    speakTimer = setTimeout(function () {
-      window.speechSynthesis.speak(u);
-    }, 50);
+    speakTimer = setTimeout(function () { window.speechSynthesis.speak(u); }, 50);
   }
 
   // ---------- 页面切换 ----------
@@ -316,7 +294,13 @@
     var tasks = SRS.getTodayTasks();
     var pool = tasks.review.length ? tasks.review : getKanaByRow(SRS.getCurrentRow());
     if (!pool.length) pool = KANA_DATA;
-    return pool[Math.floor(Math.random() * pool.length)];
+    var item = pool[Math.floor(Math.random() * pool.length)];
+    // review 队列里是假名字符串，需要转成假名对象
+    if (typeof item === 'string') {
+      item = getKana(item) || null;
+    }
+    if (!item) item = KANA_DATA[Math.floor(Math.random() * KANA_DATA.length)];
+    return item;
   }
 
   function renderPractice() {
