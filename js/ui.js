@@ -47,6 +47,26 @@
     quizLocked: false
   };
 
+  // ---------- 键盘联动 ----------
+  // 学习页：左右方向键切换上一个/下一个；空格发音
+  document.addEventListener('keydown', function (e) {
+    if (!el('page-learn') || !el('page-learn').classList.contains('active')) return;
+    if (state.learnRow == null) return;
+    var kanaList = getKanaByRow(state.learnRow);
+    if (!kanaList.length) return;
+    if (e.key === 'ArrowLeft' || e.key === 'Left') {
+      e.preventDefault();
+      if (state.learnIndex > 0) { state.learnIndex--; renderLearn(); }
+    } else if (e.key === 'ArrowRight' || e.key === 'Right') {
+      e.preventDefault();
+      if (state.learnIndex < kanaList.length - 1) { state.learnIndex++; renderLearn(); }
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      var k = kanaList[state.learnIndex];
+      if (k) speak(k.hiragana);
+    }
+  });
+
   // ---------- 发音 ----------
 
   // ---------- 发音 ----------
@@ -64,9 +84,6 @@
   }
   // 立即尝试 + 监听异步加载完成
   loadVoices();
-  if (window.speechSynthesis) {
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-  }
 
   // 预热引擎：静默发音一次，让浏览器加载语音引擎
   var warmed = false;
@@ -83,10 +100,22 @@
       window.speechSynthesis.resume();
     } catch (e) { /* ignore */ }
   }
+  // 页面加载后立即预热（不等用户点击发音），彻底消除首次发音延迟
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(warmUp, 200); });
+  } else {
+    setTimeout(warmUp, 200);
+  }
+  // voices 加载完成后再次预热，确保语音引擎真正就绪
+  if (window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = function () {
+      loadVoices();
+      setTimeout(warmUp, 100);
+    };
+  }
 
   function speak(text) {
     if (!window.speechSynthesis) return;
-    warmUp();
     window.speechSynthesis.cancel(); // 先取消，避免重叠
     var u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
@@ -238,9 +267,9 @@
 
     // 控制按钮
     controls.innerHTML =
-      '<button class="btn" id="btn-learn-prev">上一个</button>' +
+      '<button class="btn btn-secondary" id="btn-learn-prev">◀ 上一个</button>' +
       '<button class="btn btn-primary" id="btn-learn-know">学会了</button>' +
-      '<button class="btn" id="btn-learn-next">下一个</button>';
+      '<button class="btn btn-secondary" id="btn-learn-next">下一个 ▶</button>';
 
     // 事件绑定
     el('btn-learn-speak').onclick = function (e) {
@@ -251,7 +280,7 @@
     el('btn-learn-prev').onclick = function () {
       if (state.learnIndex > 0) { state.learnIndex--; renderLearn(); }
     };
-    el('btn-learn-next').onclick = function () {
+        el('btn-learn-next').onclick = function () {
       if (state.learnIndex < kanaList.length - 1) { state.learnIndex++; renderLearn(); }
     };
     el('btn-learn-know').onclick = function () {

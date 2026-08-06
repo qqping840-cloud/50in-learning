@@ -295,7 +295,12 @@ button {
 }
 
 #learn-controls .btn,
-#practice-controls .btn { flex: 1; }
+#practice-controls .btn {
+  flex: 1;
+  padding: 18px 12px;
+  font-size: 17px;
+  min-height: 56px;
+}
 
 /* 学习页头部 / 测验页头部 */
 #learn-header,
