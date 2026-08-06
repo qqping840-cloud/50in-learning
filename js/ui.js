@@ -47,6 +47,8 @@
     learnIndex: 0,           // 行内索引
     // 音表页
     chartType: 'seion',      // seion/dakuon/handakuon/yoon
+    chartMerge: false,       // 平假名+片假名合并显示
+    chartScript: 'hira',     // 未合并时显示的文字：hira/kata
     // 练习页
     practiceMode: 'forward', // forward=看假名想读音, reverse=听发音想字形
     practiceKana: null,      // 当前卡片假名
@@ -127,6 +129,42 @@
     }
     u.rate = 0.85;
     speakTimer = setTimeout(function () { window.speechSynthesis.speak(u); }, 50);
+  }
+
+  // ---------- 主题（夜间模式） ----------
+  // 默认跟随系统 prefers-color-scheme；用户手动切换后覆盖并记住
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    var light = el('theme-icon-light');
+    var dark = el('theme-icon-dark');
+    if (light) light.style.display = (theme === 'dark') ? 'none' : 'block';
+    if (dark) dark.style.display = (theme === 'dark') ? 'block' : 'none';
+  }
+
+  function getSystemTheme() {
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+
+  function initTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem('kana-theme'); } catch (e) {}
+    var theme = saved || getSystemTheme();
+    applyTheme(theme);
+    var btn = el('theme-toggle');
+    if (btn) {
+      btn.onclick = function () {
+        var current = document.documentElement.getAttribute('data-theme');
+        var next = (current === 'dark') ? 'light' : 'dark';
+        try { localStorage.setItem('kana-theme', next); } catch (e) {}
+        applyTheme(next);
+      };
+    }
+    // 系统主题变化时，若用户未手动设置则跟随
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+        if (!localStorage.getItem('kana-theme')) applyTheme(e.matches ? 'dark' : 'light');
+      });
+    }
   }
 
   // ---------- 页面切换 ----------
@@ -530,19 +568,33 @@
   };
 
   function renderChart() {
+    var mergeInput = el('chart-merge');
     var tabs = el('chart-tabs');
     var table = el('chart-table');
-    if (!tabs || !table) return;
+    if (!mergeInput || !tabs || !table) return;
 
     if (!state.chartType) state.chartType = 'seion';
+    if (!state.chartMerge) state.chartMerge = false;
+    if (!state.chartScript) state.chartScript = 'hira';
     var type = state.chartType;
+    var merge = state.chartMerge;
 
-    // 切换标签
+    mergeInput.checked = merge;
+
+    // 类型切换标签（清音/浊音/半浊音/拗音）
     tabs.innerHTML =
       '<button class="chart-tab' + (type === 'seion' ? ' active' : '') + '" data-type="seion">清音</button>' +
       '<button class="chart-tab' + (type === 'dakuon' ? ' active' : '') + '" data-type="dakuon">浊音</button>' +
       '<button class="chart-tab' + (type === 'handakuon' ? ' active' : '') + '" data-type="handakuon">半浊音</button>' +
       '<button class="chart-tab' + (type === 'yoon' ? ' active' : '') + '" data-type="yoon">拗音</button>';
+
+    // 未合并时：平假名/片假名子页签
+    if (!merge) {
+      tabs.innerHTML +=
+        '<span class="chart-tab-divider"></span>' +
+        '<button class="chart-tab' + (state.chartScript === 'hira' ? ' active' : '') + '" data-script="hira">平假名</button>' +
+        '<button class="chart-tab' + (state.chartScript === 'kata' ? ' active' : '') + '" data-script="kata">片假名</button>';
+    }
 
     // 行分组渲染
     var rows = CHART_GROUPS[type] || CHART_GROUPS.seion;
@@ -551,16 +603,33 @@
       var kanaList = getKanaByRow(row);
       if (!kanaList.length) return;
       var info = ROW_INFO[row];
+
       html += '<div class="chart-row">';
       html += '<div class="chart-row-label">' + esc(info.name) + '</div>';
-      kanaList.forEach(function (k) {
-        html +=
-          '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '" data-romaji="' + esc(k.romaji) + '">' +
+      html += '<div class="chart-row-bodies">';
+
+      if (merge) {
+        // 合并模式：单格显示 平假名+片假名+罗马音
+        html += '<div class="chart-subrow">' + kanaList.map(function (k) {
+          return '<button class="chart-cell merged" data-hiragana="' + esc(k.hiragana) + '">' +
             '<span class="chart-kana-main">' + esc(k.hiragana) + '</span>' +
             '<span class="chart-kana-sub">' + esc(k.katakana) + '</span>' +
             '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
           '</button>';
-      });
+        }).join('') + '</div>';
+      } else {
+        // 分页模式：按选中文字显示单排
+        var script = state.chartScript;
+        html += '<div class="chart-subrow">' + kanaList.map(function (k) {
+          var char = (script === 'kata') ? k.katakana : k.hiragana;
+          return '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '">' +
+            '<span class="chart-kana">' + esc(char) + '</span>' +
+            '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
+          '</button>';
+        }).join('') + '</div>';
+      }
+
+      html += '</div>';
       html += '</div>';
     });
     html += '</div>';
@@ -573,13 +642,27 @@
       };
     });
 
-    // 标签切换
-    Array.prototype.forEach.call(tabs.querySelectorAll('.chart-tab'), function (btn) {
+    // 类型标签切换
+    Array.prototype.forEach.call(tabs.querySelectorAll('.chart-tab[data-type]'), function (btn) {
       btn.onclick = function () {
         state.chartType = btn.getAttribute('data-type');
         renderChart();
       };
     });
+
+    // 文字（平假名/片假名）切换
+    Array.prototype.forEach.call(tabs.querySelectorAll('.chart-tab[data-script]'), function (btn) {
+      btn.onclick = function () {
+        state.chartScript = btn.getAttribute('data-script');
+        renderChart();
+      };
+    });
+
+    // 合并开关
+    mergeInput.onchange = function () {
+      state.chartMerge = mergeInput.checked;
+      renderChart();
+    };
   }
 
   // ---------- 导出 ----------
@@ -592,6 +675,7 @@
     renderPractice: renderPractice,
     renderQuiz: renderQuiz,
     speak: speak,
+    initTheme: initTheme,
     updateStreakDisplay: updateStreakDisplay
   };
 })();

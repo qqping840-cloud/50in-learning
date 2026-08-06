@@ -31,6 +31,27 @@
   --font-body: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
 }
 
+/* ---------- 深色主题：跟随系统或手动切换 ---------- */
+[data-theme="dark"] {
+  --color-primary: #2DD4BF;      /* 青绿提亮，深底可读 */
+  --color-primary-dark: #14B8A6;
+  --color-primary-light: #134E4A;
+  --color-success: #4ADE80;
+  --color-success-light: #14532D;
+  --color-accent: #FB923C;
+  --color-accent-light: #431407;
+  --color-error: #F87171;
+  --color-error-light: #450A0A;
+  --color-bg: #171717;           /* 深炭背景 */
+  --color-card: #262626;
+  --color-text: #F5F5F4;         /* 米白文字 */
+  --color-text-secondary: #A8A29E;
+  --color-border: #3F3F46;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
+}
+
 /* ---------- 1. 全局 reset + 基础设置 ---------- */
 *,
 *::before,
@@ -819,3 +840,96 @@ button {
   .chart-kana-sub { font-size: 13px; }
   .chart-romaji { font-size: 10px; }
 }
+
+/* ---------- 17. 顶部工具栏：主题按钮 + 头部布局 ---------- */
+#header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.theme-btn svg { width: 20px; height: 20px; }
+.theme-btn:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.theme-btn:active { transform: scale(0.92); }
+.theme-btn #theme-icon-dark { display: none; }
+
+/* ---------- 18. 音表工具栏：合并开关 ---------- */
+#chart-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch input { display: none; }
+
+.switch-track {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--color-border);
+  position: relative;
+  transition: background 0.2s;
+}
+
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s;
+}
+
+.switch input:checked + .switch-track {
+  background: var(--color-primary);
+}
+
+.switch input:checked + .switch-track::after {
+  transform: translateX(20px);
+}
+
+.switch-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+/* 文字切换分隔线 */
+.chart-tab-divider {
+  width: 1px;
+  background: var(--color-border);
+  margin: 4px 2px;
+}
+
+/* 合并模式单元格：平假名+片假名同格 */
+.chart-cell.merged { flex-direction: row; gap: 6px; }
+.chart-cell.merged .chart-kana-main { font-size: 22px; }
+.chart-cell.merged .chart-kana-sub { font-size: 15px; }
+.chart-cell.merged .chart-romaji { font-size: 10px; margin-left: 2px; }

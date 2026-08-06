@@ -23,6 +23,9 @@
 
   // 初始化
   function init() {
+    // 初始化主题（跟随系统）
+    UI.initTheme();
+
     // 更新连续学习天数
     Storage.updateStreak();
 
