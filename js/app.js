@@ -11,7 +11,8 @@
     learn: function () { UI.renderLearn(); },
     chart: function () { UI.renderChart(); },
     practice: function () { UI.renderPractice(); },
-    quiz: function () { UI.renderQuiz(); }
+    quiz: function () { UI.renderQuiz(); },
+    reading: function () { UI.renderReading(); }
   };
 
   // 切换页面：更新显示、导航状态，并调用对应渲染

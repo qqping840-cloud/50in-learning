@@ -1,0 +1,7 @@
+# 私人配置，不上传
+config.json
+
+# 系统文件
+node_modules/
+.DS_Store
+Thumbs.db

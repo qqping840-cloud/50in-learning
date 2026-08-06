@@ -170,7 +170,7 @@
   // ---------- 页面切换 ----------
 
   function showPage(pageName) {
-    ['home', 'learn', 'chart', 'practice', 'quiz'].forEach(function (p) {
+    ['home', 'learn', 'chart', 'practice', 'quiz', 'reading'].forEach(function (p) {
       var page = el('page-' + p);
       if (page) page.classList.toggle('active', p === pageName);
     });
@@ -674,6 +674,7 @@
     renderChart: renderChart,
     renderPractice: renderPractice,
     renderQuiz: renderQuiz,
+    renderReading: function () { if (window.Reading) window.Reading.render(); },
     speak: speak,
     initTheme: initTheme,
     updateStreakDisplay: updateStreakDisplay
