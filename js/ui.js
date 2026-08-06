@@ -68,43 +68,48 @@
   });
 
   // ---------- 发音 ----------
-
-  // ---------- 发音 ----------
-  // 预加载日语 voice，降低首次发音延迟
+  // 预加载 voice。优先日语，其次中文（中文读假名接近日语发音），再英文
   var jaVoice = null;
   var voiceReady = false;
   function loadVoices() {
     if (!window.speechSynthesis) return;
     var voices = window.speechSynthesis.getVoices();
     if (!voices || !voices.length) return;
-    // 优先选日语 voice
-    jaVoice = voices.find(function (v) { return /ja[-_]JP/i.test(v.lang); }) ||
-              voices.find(function (v) { return /^ja/i.test(v.lang); }) || null;
+    jaVoice =
+      voices.find(function (v) { return /ja[-_]JP/i.test(v.lang); }) ||
+      voices.find(function (v) { return /^ja/i.test(v.lang); }) ||
+      voices.find(function (v) { return /zh[-_]CN/i.test(v.lang); }) ||
+      voices.find(function (v) { return /^zh/i.test(v.lang); }) ||
+      voices.find(function (v) { return /en[-_]US/i.test(v.lang); }) ||
+      voices[0] || null;
     voiceReady = true;
   }
   // 立即尝试 + 监听异步加载完成
   loadVoices();
 
   // 预热引擎：静默发音一次，让浏览器加载语音引擎
+  // 注意：不使用 pause()/resume()（Chrome 已知 bug，会让后续发音挂起）
   var warmed = false;
   function warmUp() {
     if (warmed || !window.speechSynthesis) return;
+    var voices = window.speechSynthesis.getVoices();
+    if (!voices || !voices.length) return; // voices 没就绪就先不预热
     warmed = true;
     try {
       var u = new SpeechSynthesisUtterance(' ');
-      u.lang = 'ja-JP';
+      if (jaVoice) { u.voice = jaVoice; u.lang = jaVoice.lang; }
+      else u.lang = 'ja-JP';
       u.volume = 0;
-      u.rate = 1;
       window.speechSynthesis.speak(u);
-      window.speechSynthesis.pause();
-      window.speechSynthesis.resume();
+      // 立即 cancel，只唤醒引擎不真正发声
+      setTimeout(function () { window.speechSynthesis.cancel(); }, 100);
     } catch (e) { /* ignore */ }
   }
   // 页面加载后立即预热（不等用户点击发音），彻底消除首次发音延迟
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { setTimeout(warmUp, 200); });
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(warmUp, 300); });
   } else {
-    setTimeout(warmUp, 200);
+    setTimeout(warmUp, 300);
   }
   // voices 加载完成后再次预热，确保语音引擎真正就绪
   if (window.speechSynthesis) {
@@ -114,14 +119,24 @@
     };
   }
 
+  // 防止快速连续点击时语音堆积/卡死
+  var speakTimer = null;
   function speak(text) {
     if (!window.speechSynthesis) return;
+    if (speakTimer) clearTimeout(speakTimer);
     window.speechSynthesis.cancel(); // 先取消，避免重叠
     var u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP';
-    if (jaVoice) u.voice = jaVoice;
+    if (jaVoice) {
+      u.voice = jaVoice;
+      u.lang = jaVoice.lang; // lang 跟随所选 voice，避免不匹配被忽略
+    } else {
+      u.lang = 'ja-JP';
+    }
     u.rate = 0.85;
-    window.speechSynthesis.speak(u);
+    // 稍延迟再 speak，规避 Chrome cancel 后立即 speak 被吞的 bug
+    speakTimer = setTimeout(function () {
+      window.speechSynthesis.speak(u);
+    }, 50);
   }
 
   // ---------- 页面切换 ----------
