@@ -1104,6 +1104,25 @@ button {
 .reading-space { letter-spacing: 6px; }
 .reading-plain { color: var(--color-text); }
 
+/* 汉字注音（kuroshiro） */
+.reading-char[data-reading] { cursor: pointer; }
+.reading-char[data-reading] ruby rt {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+/* 注音加载中提示 */
+.reading-loading {
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 40px 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
 /* 打字模式 */
 .typing-topbar {
   display: flex;

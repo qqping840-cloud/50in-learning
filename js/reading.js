@@ -16,6 +16,8 @@
     params: { difficulty: '初级', topic: '日常对话', length: '短（约50字）', form: '纯假名' },
     article: null,      // 生成的纯文本
     parsed: [],         // 假名序列 [{char, romaji, ...}]
+    annotated: null,    // 注音 token 数组（kuroshiro 结果），null=未注音
+    annotatedText: null, // 上次注音对应的文章文本（用于判断缓存是否过期）
     hideRomaji: false,
     typingActive: false,
     generating: false
@@ -57,6 +59,136 @@
   }
   // 词间微空格判断
   function isWordSpace(ch) { return ch === ' '; }
+
+  // ---------- 汉字注音（kuroshiro） ----------
+  var kuroshiroPromise = null;  // 惰性初始化
+  var kuroshiroReady = false;
+  var globalKuroshiro = null;
+
+  // 惰性初始化 kuroshiro，返回 Promise。失败时返回 null（降级，不崩）
+  function initKuroshiro() {
+    if (kuroshiroReady) return Promise.resolve(true);
+    if (kuroshiroPromise) return kuroshiroPromise;
+    kuroshiroPromise = new Promise(function (resolve) {
+      try {
+        if (typeof Kuroshiro === 'undefined' || typeof KuromojiAnalyzer === 'undefined') {
+          resolve(false); return;
+        }
+        // kuroshiro 的 UMD 构建挂在 window.Kuroshiro.default 上
+        var KuroshiroCtor = Kuroshiro.default || Kuroshiro;
+        var k = new KuroshiroCtor();
+        k.init(new KuromojiAnalyzer({ dictPath: 'assets/lib/dict' }))
+          .then(function () { kuroshiroReady = true; resolve(true); })
+          .catch(function () { resolve(false); });
+        globalKuroshiro = k;
+      } catch (e) { resolve(false); }
+    });
+    return kuroshiroPromise;
+  }
+
+  // 判断字符是否为假名（含长音符ー），供 token 分类用
+  function isKanaCh(ch) { return !!kanaRomaji(ch) || ch === 'ー'; }
+
+  // 缓存 key：文章文本 → 注音 HTML
+  function cacheKey(text) {
+    return 'kana-furigana-v1-' + text.length + '-' + text.slice(0, 50);
+  }
+
+  // 处理 kuroshiro 返回的 furigana HTML：
+  // 用 DOM 遍历：汉字 ruby 节点加 data-reading（点读），顶层假名文本补罗马音
+  function decorateHtml(html) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    // 1. 汉字 ruby → 加 data-reading span
+    Array.prototype.forEach.call(wrap.querySelectorAll('ruby'), function (ruby) {
+      var rt = ruby.querySelector('rt');
+      var reading = rt ? rt.textContent : '';
+      var span = document.createElement('span');
+      span.className = 'reading-char';
+      span.setAttribute('data-reading', reading);
+      ruby.parentNode.insertBefore(span, ruby);
+      span.appendChild(ruby);
+    });
+    // 2. 顶层假名文本节点 → 补罗马音 ruby
+    walkText(wrap, function (node) {
+      var text = node.nodeValue;
+      if (!text) return;
+      var pieces = splitKana(text);
+      if (!pieces || pieces.length === 0) return;
+      var frag = document.createDocumentFragment();
+      var inserted = false;
+      pieces.forEach(function (p) {
+        if (p.type === 'kana') {
+          inserted = true;
+          frag.appendChild(htmlToEl(plainHtml(p.text)));
+        } else {
+          frag.appendChild(document.createTextNode(p.text));
+        }
+      });
+      if (inserted) node.parentNode.replaceChild(frag, node);
+    });
+    return wrap.innerHTML;
+  }
+
+  // 把文本切成假名段和非假名段
+  function splitKana(text) {
+    var parts = [];
+    var cur = '';
+    var curIsKana = null;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      var isK = isKanaCh(ch);
+      if (curIsKana === null) { curIsKana = isK; cur = ch; }
+      else if (isK === curIsKana) { cur += ch; }
+      else { parts.push({ type: curIsKana ? 'kana' : 'other', text: cur }); curIsKana = isK; cur = ch; }
+    }
+    if (cur) parts.push({ type: curIsKana ? 'kana' : 'other', text: cur });
+    return parts.filter(function (p) { return p.type === 'kana'; });
+  }
+
+  // HTML 字符串 → DOM 元素
+  function htmlToEl(html) {
+    var d = document.createElement('div');
+    d.innerHTML = html;
+    return d.firstChild;
+  }
+
+  // 遍历文本节点（不含 ruby 内部）
+  function walkText(root, fn) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        // 跳过 ruby 内部的 rt/rp
+        if (node.parentNode && node.parentNode.tagName && /^(RT|RP|RUBY)$/i.test(node.parentNode.tagName)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [];
+    var n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    nodes.forEach(fn);
+  }
+
+  // 取文章注音结果。优先读缓存；无缓存则调 kuroshiro 转换并写入缓存。
+  // 返回 Promise：resolve 注音 HTML；失败降级 resolve null
+  function annotateArticle(text) {
+    if (!kuroshiroReady || !globalKuroshiro) return Promise.resolve(null);
+    var key = cacheKey(text);
+    // 1. 先查 localStorage 缓存
+    try {
+      var cached = localStorage.getItem(key);
+      if (cached) return Promise.resolve(cached);
+    } catch (e) {}
+    // 2. 调 kuroshiro 转换（furigana 模式返回带 ruby 注音的 HTML）
+    return globalKuroshiro.convert(text, { to: 'hiragana', mode: 'furigana' })
+      .then(function (html) {
+        var decorated = decorateHtml(html);
+        try { localStorage.setItem(key, decorated); } catch (e) {}
+        return decorated;
+      })
+      .catch(function () { return null; });
+  }
 
   // ---------- API ----------
   function apiGet(url) {
@@ -299,13 +431,43 @@
   function renderArticle() {
     var box = el('reading-article');
     if (!box) return;
-    var hide = state.hideRomaji;
-    var html = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">';
+    var pending = !state.annotated || state.annotatedText !== state.article;
+    if (pending) {
+      box.innerHTML = '<div class="reading-loading">正在加载注音...</div>';
+    }
+    initKuroshiro().then(function (ok) {
+      if (ok) {
+        // kuroshiro 可用：汉字有注音
+        renderAnnotated();
+      } else {
+        // 降级：用现有逐字符逻辑（汉字走 reading-plain，无注音）
+        renderFallback();
+      }
+    });
+  }
+
+  // 汉字注音渲染：渲染 kuroshiro 生成的注音 HTML
+  function renderAnnotated() {
+    var box = el('reading-article');
+    if (!box) return;
+    annotateArticle(state.article).then(function (html) {
+      if (!html) { renderFallback(); return; }
+      state.annotated = html;
+      state.annotatedText = state.article;
+      var hide = state.hideRomaji;
+      box.innerHTML = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">' + html + '</div>';
+      bindCharClick(box);
+    });
+  }
+
+  // 逐字符生成 furigana 标记（假名+罗马音，汉字无注音），不包外层容器
+  function plainHtml(text) {
+    var html = '';
     var i = 0;
-    while (i < state.article.length) {
-      var ch = state.article[i];
+    while (i < text.length) {
+      var ch = text[i];
       // 优先匹配双字符拗音（きょ 等），与打字解析逻辑一致
-      var two = state.article.substr(i, 2);
+      var two = text.substr(i, 2);
       var twoRomaji = (getKana(two) || EXTRA_KANA[two]) ? kanaRomaji(two) : null;
       if (twoRomaji) {
         html +=
@@ -330,13 +492,27 @@
       }
       i++;
     }
+    return html;
+  }
+
+  // 降级渲染：kuroshiro 不可用时的逐字符逻辑（原 renderArticle 主体）
+  function renderFallback() {
+    var box = el('reading-article');
+    if (!box) return;
+    var hide = state.hideRomaji;
+    var html = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">';
+    html += plainHtml(state.article);
     html += '</div>';
     box.innerHTML = html;
+    bindCharClick(box);
+  }
 
-    // 点击假名发音
-    Array.prototype.forEach.call(box.querySelectorAll('.reading-char[data-kana]'), function (span) {
+  // 绑定点读：假名点读原假名，汉字点读 data-reading 假名读音
+  function bindCharClick(box) {
+    Array.prototype.forEach.call(box.querySelectorAll('.reading-char[data-kana], .reading-char[data-reading]'), function (span) {
       span.onclick = function () {
-        if (window.UI && window.UI.speak) window.UI.speak(span.getAttribute('data-kana'));
+        var word = span.getAttribute('data-reading') || span.getAttribute('data-kana');
+        if (window.UI && window.UI.speak) window.UI.speak(word);
       };
     });
   }

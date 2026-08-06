@@ -81,9 +81,12 @@ function serveStatic(req, res, urlPath) {
       res.writeHead(404); res.end('Not Found'); return;
     }
     var ext = path.extname(filePath).toLowerCase();
+    var cacheControl = (urlPath.indexOf('/assets/lib/dict/') === 0)
+      ? 'max-age=315360000, immutable'
+      : 'no-cache';
     res.writeHead(200, {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': cacheControl
     });
     res.end(data);
   });
