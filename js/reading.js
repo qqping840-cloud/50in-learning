@@ -190,6 +190,39 @@
       .catch(function () { return null; });
   }
 
+  // ---------- AI 生成结果清洗 ----------
+  // 无论 AI 返回什么，清洗成干净的日语纯文本（剥离 markdown/HTML/标题/空行/英文注释）
+  function sanitizeArticle(text, form) {
+    if (!text) return '';
+    var s = String(text);
+    // 1. 剥离代码块
+    s = s.replace(/```[\s\S]*?```/g, '');
+    // 2. 剥离 HTML 标签
+    s = s.replace(/<[^>]+>/g, '');
+    // 3. 剥离 Markdown 标记（# 标题、**加粗、*斜体、- 列表、> 引用、` 行内代码）
+    s = s.replace(/^#{1,6}\s*/gm, '');
+    s = s.replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '').replace(/^>\s*/gm, '');
+    // 4. 剥离"标题："、"文章："、"正文："等前缀引导语
+    s = s.replace(/^(标题|文章|正文|以下|以下是|内容|作文)[：:]\s*/gm, '');
+    s = s.replace(/^(これは|以下は|本文は)[：:]\s*/g, '');
+    // 5. 行首列表符号（-、•、数字.）
+    s = s.replace(/^[-•]\s+/gm, '');
+    s = s.replace(/^\d+[.、]\s+/gm, '');
+    // 6. 合并空白：多个空格→一个，去行尾空格
+    s = s.replace(/[ \t]+/g, ' ').replace(/[ \t]+$/gm, '');
+    // 7. 合并多余空行
+    s = s.replace(/\n{3,}/g, '\n\n');
+    // 8. 纯假名模式：移除所有汉字，确保无需注音依赖（AI 偶尔会偷懒输出汉字）
+    var pureKana = form && form.indexOf('纯假名') !== -1;
+    if (pureKana) {
+      s = s.replace(/[\u4E00-\u9FFF\u3400-\u4DBF]/g, '');
+      // 移除可能残留的英文/拼音注释（括号内非日文内容）
+      s = s.replace(/[（(][A-Za-z\s]+[)）]/g, '');
+      s = s.replace(/[A-Za-z]+/g, '');
+    }
+    return s.trim();
+  }
+
   // ---------- API ----------
   function apiGet(url) {
     return fetch(url).then(function (r) { return r.json(); });
@@ -367,7 +400,13 @@
         alert('生成结果为空，请重试');
         return;
       }
-      state.article = content.trim();
+      // 清洗 AI 输出（剥离 markdown/标题/空行等，纯假名模式过滤汉字）
+      content = sanitizeArticle(content, state.params.form);
+      if (!content) {
+        alert('生成结果无效，请重试');
+        return;
+      }
+      state.article = content;
       state.typingActive = false;
       state.hideRomaji = false;
       // 解析假名序列（供阅读/打字用）
