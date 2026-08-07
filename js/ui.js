@@ -293,20 +293,24 @@
 
     var info = ROW_INFO[state.learnRow];
     var kana = kanaList[state.learnIndex];
+    var isLearned = Storage.getKana(kana.hiragana).box >= 1;
 
     // 题头：行名 + 进度
     header.innerHTML =
       '<div class="learn-row-name">' + esc(info.name) + '</div>' +
       '<div class="learn-progress-text">第 ' + (state.learnIndex + 1) + ' 个 / 共 ' + kanaList.length + ' 个</div>';
 
-    // 假名卡片：平假名左、片假名右、罗马音下、发音按钮
+    // 假名卡片：平假名左、片假名右、罗马音下、发音按钮，已学过显示对勾徽章
     card.innerHTML =
-      '<div class="kana-pair">' +
-        '<div class="kana-char hiragana">' + esc(kana.hiragana) + '</div>' +
-        '<div class="kana-char katakana">' + esc(kana.katakana) + '</div>' +
-      '</div>' +
-      '<div class="kana-romaji">' + esc(kana.romaji) + '</div>' +
-      '<button class="btn btn-speak" id="btn-learn-speak" aria-label="发音">' + ICON_SPEAK + '</button>';
+      '<div class="kana-card-inner">' +
+        '<div class="kana-pair">' +
+          '<div class="kana-char hiragana">' + esc(kana.hiragana) + '</div>' +
+          '<div class="kana-char katakana">' + esc(kana.katakana) + '</div>' +
+        '</div>' +
+        (isLearned ? '<span class="learn-check" aria-label="已学会"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>' : '') +
+        '<div class="kana-romaji">' + esc(kana.romaji) + '</div>' +
+        '<button class="btn btn-speak" id="btn-learn-speak" aria-label="发音">' + ICON_SPEAK + '</button>' +
+      '</div>';
 
     // 控制按钮
     controls.innerHTML =
@@ -334,12 +338,19 @@
     };
     el('btn-learn-know').onclick = function () {
       SRS.startLearning(kana.hiragana); // 标记认识，进入 SRS
-      if (state.learnIndex < kanaList.length - 1) {
-        state.learnIndex++;
-        renderLearn();
-      } else {
-        App.navigate('home'); // 本行学完，回首页
-      }
+      if (window.SRS.recordStudy) SRS.recordStudy(kana.hiragana); // 记录学习次数
+      // 立即重新渲染，让对勾出现（停留显示，不自动跳转）
+      renderLearn();
+      // 按钮短暂反馈
+      var btn = el('btn-learn-know');
+      btn.classList.add('btn-success');
+      btn.innerText = '已学会 ✓';
+      setTimeout(function () {
+        if (el('btn-learn-know')) {
+          el('btn-learn-know').classList.remove('btn-success');
+          el('btn-learn-know').innerText = '学会了';
+        }
+      }, 600);
     };
   }
 
@@ -611,7 +622,15 @@
       if (merge) {
         // 合并模式：单格显示 平假名+片假名+罗马音
         html += '<div class="chart-subrow">' + kanaList.map(function (k) {
+          var prog = Storage.getKana(k.hiragana);
+          var badgeHtml = '';
+          if (prog.box >= 1) {
+            badgeHtml = '<span class="chart-badge learned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>';
+          } else if ((prog.studyCount || 0) > 0) {
+            badgeHtml = '<span class="chart-badge weak">' + (prog.studyCount || 0) + '</span>';
+          }
           return '<button class="chart-cell merged" data-hiragana="' + esc(k.hiragana) + '">' +
+            badgeHtml +
             '<span class="chart-kana-main">' + esc(k.hiragana) + '</span>' +
             '<span class="chart-kana-sub">' + esc(k.katakana) + '</span>' +
             '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
@@ -622,7 +641,15 @@
         var script = state.chartScript;
         html += '<div class="chart-subrow">' + kanaList.map(function (k) {
           var char = (script === 'kata') ? k.katakana : k.hiragana;
+          var prog = Storage.getKana(k.hiragana);
+          var badgeHtml = '';
+          if (prog.box >= 1) {
+            badgeHtml = '<span class="chart-badge learned"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>';
+          } else if ((prog.studyCount || 0) > 0) {
+            badgeHtml = '<span class="chart-badge weak">' + (prog.studyCount || 0) + '</span>';
+          }
           return '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '">' +
+            badgeHtml +
             '<span class="chart-kana">' + esc(char) + '</span>' +
             '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
           '</button>';

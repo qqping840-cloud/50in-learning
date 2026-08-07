@@ -1468,3 +1468,66 @@ button {
 }
 
 #btn-reading-generate { margin: 12px 20px 20px; width: calc(100% - 40px); }
+
+/* ---------- 学习页：已学对勾徽章 ---------- */
+.kana-card-inner {
+  position: relative;
+}
+
+.learn-check {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 2;
+}
+
+.learn-check svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 音表页：单元格角标 */
+.chart-cell {
+  position: relative;
+}
+
+.chart-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  z-index: 2;
+  line-height: 1;
+}
+
+.chart-badge.learned {
+  background: var(--color-success);
+  color: #fff;
+}
+
+.chart-badge.learned svg {
+  width: 10px;
+  height: 10px;
+}
+
+.chart-badge.weak {
+  background: var(--color-accent);
+  color: #fff;
+}
