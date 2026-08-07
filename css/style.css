@@ -77,11 +77,9 @@ button {
   color: inherit;
 }
 
-/* ---------- 2. #app 容器：16:9 宽屏布局 ---------- */
+/* ---------- 2. #app 容器：全宽布局 ---------- */
 #app {
   width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
@@ -117,17 +115,15 @@ button {
 /* ---------- 主内容区 ---------- */
 #main {
   flex: 1;
-  padding: 24px 28px 48px;
+  padding: 24px 28px 96px; /* 底部留出固定导航栏空间 */
 }
 
-/* ---------- 4. #bottom-nav：固定底部，居中 ---------- */
+/* ---------- 4. #bottom-nav：固定底部，全宽 ---------- */
 #bottom-nav {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   width: 100%;
-  max-width: 1200px;
   display: flex;
   background: var(--color-card);
   border-top: 1px solid var(--color-border);
@@ -721,7 +717,7 @@ button {
   }
 
   #main {
-    padding: 16px 16px 80px;
+    padding: 16px 16px 96px;
   }
 }
 
