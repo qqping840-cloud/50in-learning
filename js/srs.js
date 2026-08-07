@@ -114,6 +114,12 @@
       }).length;
     },
 
+    // 记录一次学习接触（学习页学会/练习答对/测验答对时调用），studyCount + 1
+    recordStudy: function (hiragana) {
+      var p = window.Storage.getKana(hiragana);
+      window.Storage.updateKana(hiragana, { studyCount: (p.studyCount || 0) + 1 });
+    },
+
     // 开始学习某个假名：box=1，今天复习
     startLearning: function (hiragana) {
       window.Storage.updateKana(hiragana, { box: 1, nextReview: todayStr() });

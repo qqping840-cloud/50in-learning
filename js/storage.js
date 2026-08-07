@@ -6,7 +6,7 @@
 (function () {
   var KEY = 'kana-progress-v1';
 
-  var DEFAULT_KANA = { box: 0, nextReview: null, correctStreak: 0, totalReviews: 0, lastResult: null };
+  var DEFAULT_KANA = { box: 0, nextReview: null, correctStreak: 0, totalReviews: 0, lastResult: null, studyCount: 0 };
 
   function defaultData() {
     return {
