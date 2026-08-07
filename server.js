@@ -112,7 +112,7 @@ function handleGenerate(req, res, body) {
     '2. 纯文本，不要使用 Markdown 标记（如 #、*、-、**）、不要 HTML 标签、不要代码块。\n' +
     '3. 正文用自然段落，句号结尾，不要空行分隔句子。\n' +
     '4. 只用日语假名和标点，不要夹杂英文单词、拼音或注释。\n' +
-    '5. 如果用户要求"纯假名"，则文章不得出现任何汉字，全部用平假名书写。';
+    '5. 如果用户要求"纯假名"，请尽量使用平假名书写，使文章适合假名初学者；若个别汉字难以避免，允许少量出现，系统会自动为汉字标注读音。';
   var userPrompt = buildPrompt(payload);
 
   var requestBody = JSON.stringify({

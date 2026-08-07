@@ -212,13 +212,12 @@
     s = s.replace(/[ \t]+/g, ' ').replace(/[ \t]+$/gm, '');
     // 7. 合并多余空行
     s = s.replace(/\n{3,}/g, '\n\n');
-    // 8. 纯假名模式：移除所有汉字，确保无需注音依赖（AI 偶尔会偷懒输出汉字）
+    // 8. 纯假名模式：不再强制删除汉字（兼容汉字，前端自动注音），
+    //    仅清理英文注释等无关内容（如"（watashi）"这类拼音注释）
     var pureKana = form && form.indexOf('纯假名') !== -1;
     if (pureKana) {
-      s = s.replace(/[\u4E00-\u9FFF\u3400-\u4DBF]/g, '');
-      // 移除可能残留的英文/拼音注释（括号内非日文内容）
+      // 移除括号内英文注释（kuroshiro 注音时不需要英文干扰）
       s = s.replace(/[（(][A-Za-z\s]+[)）]/g, '');
-      s = s.replace(/[A-Za-z]+/g, '');
     }
     return s.trim();
   }
