@@ -7,6 +7,7 @@
  * 零依赖，Node 原生 http。
  */
 var http = require('http');
+var https = require('https');
 var fs = require('fs');
 var path = require('path');
 
@@ -125,7 +126,7 @@ function handleGenerate(req, res, body) {
     stream: false
   });
 
-  var req2 = http.request({
+  var req2 = https.request({
     hostname: 'api.deepseek.com',
     port: 443,
     path: '/chat/completions',
@@ -141,8 +142,24 @@ function handleGenerate(req, res, body) {
     res2.on('end', function () {
       var out = Buffer.concat(chunks).toString('utf8');
       var status = res2.statusCode;
-      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(out);
+      // DeepSeek 可能返回非 JSON 错误文本（key 无效/限流/余额不足等），统一包装为 JSON
+      if (status >= 200 && status < 300) {
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(out);
+      } else {
+        var errMsg = '请求失败';
+        try {
+          var parsed = JSON.parse(out);
+          if (parsed.error && parsed.error.message) errMsg = parsed.error.message;
+          else if (parsed.message) errMsg = parsed.message;
+        } catch (e) {
+          // 非 JSON：取纯文本第一行作为错误信息
+          var text = (out || '').trim().split('\n')[0];
+          if (text && text.length < 300) errMsg = text;
+        }
+        res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'DEEPSEEK_ERROR', status: status, message: errMsg }));
+      }
     });
   });
   req2.on('error', function (e) {

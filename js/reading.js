@@ -223,15 +223,27 @@
   }
 
   // ---------- API ----------
+  // 容错解析响应：优先 JSON，非 JSON 时返回 { error, message } 不抛异常
+  function safeParse(r) {
+    return r.text().then(function (text) {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        var msg = (text || '').trim().split('\n')[0];
+        if (msg.length > 300) msg = msg.slice(0, 300) + '...';
+        return { error: 'BAD_RESPONSE', message: msg || ('请求失败（HTTP ' + r.status + '）') };
+      }
+    });
+  }
   function apiGet(url) {
-    return fetch(url).then(function (r) { return r.json(); });
+    return fetch(url).then(function (r) { return safeParse(r); });
   }
   function apiPost(url, data) {
     return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
-    }).then(function (r) { return r.json(); });
+    }).then(function (r) { return safeParse(r); });
   }
 
   // ---------- 渲染主入口 ----------
@@ -414,7 +426,7 @@
     }).catch(function (err) {
       state.generating = false;
       if (genBtn) { genBtn.disabled = false; genBtn.innerText = '生成文章'; }
-      alert('请求失败：' + err.message);
+      alert('请求失败：' + ((err && err.message) || '网络错误，请检查服务是否在运行'));
     });
   }
 
