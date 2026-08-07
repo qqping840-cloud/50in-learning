@@ -1531,3 +1531,70 @@ button {
   background: var(--color-accent);
   color: #fff;
 }
+
+/* ---------- 练习页：听发音选字形（反向模式四选一） ---------- */
+.flashcard-face.practice-quiz {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 16px;
+}
+
+.practice-quiz-prompt {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.practice-quiz-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.practice-quiz-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 8px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.2s;
+}
+
+.practice-quiz-opt .chart-kana {
+  font-family: var(--font-kana);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.practice-quiz-opt .chart-romaji {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.practice-quiz-opt:active { transform: translateY(2px); }
+
+.practice-quiz-opt.correct {
+  background: var(--color-success-light);
+  border-color: var(--color-success);
+  animation: bounce 0.5s;
+}
+
+.practice-quiz-opt.correct .chart-kana { color: var(--color-success); }
+
+.practice-quiz-opt.wrong {
+  background: var(--color-error-light);
+  border-color: var(--color-error);
+  animation: shake 0.4s;
+}
+
+.practice-quiz-opt.wrong .chart-kana { color: var(--color-error); }

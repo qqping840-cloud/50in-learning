@@ -385,13 +385,77 @@
       '<button class="btn mode-btn' + (state.practiceMode === 'forward' ? ' active' : '') + '" data-mode="forward">看假名想读音</button>' +
       '<button class="btn mode-btn' + (state.practiceMode === 'reverse' ? ' active' : '') + '" data-mode="reverse">听发音想字形</button>';
 
-    // 翻卡区域
-    var front, back;
-    if (state.practiceMode === 'forward') {
-      front = '<div class="flashcard-face"><div class="kana-char big">' + esc(kana.hiragana) + '</div></div>';
-    } else {
-      front = '<div class="flashcard-face"><button class="btn btn-speak" id="btn-practice-speak" aria-label="播放发音">' + ICON_PLAY + '</button></div>';
+    // 模式切换事件（两种模式共用，需在反向分支 return 前绑定）
+    Array.prototype.forEach.call(modeSwitch.querySelectorAll('.mode-btn'), function (btn) {
+      btn.onclick = function () {
+        state.practiceMode = btn.getAttribute('data-mode');
+        state.practiceFlipped = false;
+        state.practiceKana = pickPracticeKana();
+        renderPractice();
+      };
+    });
+
+    // 反向模式：听发音选字形（四选一），不用翻卡
+    if (state.practiceMode === 'reverse') {
+      card.className = '';
+      card.innerHTML =
+        '<div class="flashcard-face practice-quiz">' +
+          '<div class="practice-quiz-prompt">听发音，选假名</div>' +
+          '<button class="btn btn-speak" id="btn-practice-speak" aria-label="播放发音">' + ICON_PLAY + '</button>' +
+          '<div class="practice-quiz-options" id="practice-quiz-options"></div>' +
+        '</div>';
+      var optBox = el('practice-quiz-options');
+      // 生成选项：1 正确 + 3 干扰，打乱
+      var distractors = pickDistractors(kana, 3);
+      var options = shuffle([kana].concat(distractors));
+      optBox.innerHTML = options.map(function (o) {
+        return '<button class="practice-quiz-opt" data-hira="' + esc(o.hiragana) + '">' +
+          '<span class="chart-kana">' + esc(o.hiragana) + '</span>' +
+          '<span class="chart-romaji">' + esc(o.romaji) + '</span>' +
+        '</button>';
+      }).join('');
+
+      // 控制按钮区留空（选择即判定）
+      controls.innerHTML = '';
+
+      // 播放发音按钮
+      var speakBtn = el('btn-practice-speak');
+      if (speakBtn) {
+        speakBtn.onclick = function (e) { e.stopPropagation(); speak(kana.hiragana); };
+      }
+
+      // 选项点击判定
+      Array.prototype.forEach.call(optBox.querySelectorAll('.practice-quiz-opt'), function (btn) {
+        btn.onclick = function () {
+          if (optBox._locked) return;
+          optBox._locked = true;
+          var picked = btn.getAttribute('data-hira');
+          var isRight = (picked === kana.hiragana);
+          // 反馈：选中项高亮，正确答案标绿
+          if (isRight) {
+            btn.classList.add('correct');
+            SRS.markCorrect(kana.hiragana);
+            if (window.SRS && window.SRS.recordStudy) SRS.recordStudy(kana.hiragana);
+            speak(kana.hiragana);
+          } else {
+            btn.classList.add('wrong');
+            var rightBtn = optBox.querySelector('[data-hira="' + kana.hiragana + '"]');
+            if (rightBtn) rightBtn.classList.add('correct');
+            SRS.markWrong(kana.hiragana);
+            if (window.SRS && window.SRS.recordStudy) SRS.recordStudy(kana.hiragana);
+          }
+          setTimeout(nextPractice, 700);
+        };
+      });
+
+      // 自动播放一次发音
+      speak(kana.hiragana);
+      return;
     }
+
+    // 正向模式：翻卡 + 答对/答错
+    var front, back;
+    front = '<div class="flashcard-face"><div class="kana-char big">' + esc(kana.hiragana) + '</div></div>';
     back =
       '<div class="flashcard-face flashcard-back">' +
         '<div class="kana-pair">' +
@@ -411,32 +475,21 @@
       '<button class="btn btn-right" id="btn-practice-right">答对了</button>';
 
     // 事件绑定
-    Array.prototype.forEach.call(modeSwitch.querySelectorAll('.mode-btn'), function (btn) {
-      btn.onclick = function () {
-        state.practiceMode = btn.getAttribute('data-mode');
-        state.practiceFlipped = false;
-        state.practiceKana = pickPracticeKana();
-        renderPractice();
-      };
-    });
     card.onclick = function () { // 点击翻面
       state.practiceFlipped = !state.practiceFlipped;
       card.classList.toggle('flipped', state.practiceFlipped);
     };
-    var speakBtn = el('btn-practice-speak');
-    if (speakBtn) speakBtn.onclick = function (e) { e.stopPropagation(); speak(kana.hiragana); };
     var speakBackBtn = el('btn-practice-speak-back');
     if (speakBackBtn) speakBackBtn.onclick = function (e) { e.stopPropagation(); speak(kana.hiragana); };
 
-    // 反向模式自动播放一次发音
-    if (state.practiceMode === 'reverse' && !state.practiceFlipped) speak(kana.hiragana);
-
     el('btn-practice-right').onclick = function () {
       SRS.markCorrect(kana.hiragana);
+      if (window.SRS && window.SRS.recordStudy) SRS.recordStudy(kana.hiragana);
       nextPractice();
     };
     el('btn-practice-wrong').onclick = function () {
       SRS.markWrong(kana.hiragana);
+      if (window.SRS && window.SRS.recordStudy) SRS.recordStudy(kana.hiragana);
       nextPractice();
     };
   }
