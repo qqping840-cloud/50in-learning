@@ -500,10 +500,15 @@
     var box = el('reading-article');
     if (!box) return;
     var hide = state.hideRomaji;
+    // 检测是否 file:// 协议（此时词典无法加载）
+    var isFile = (typeof location !== 'undefined') && location.protocol === 'file:';
+    var notice = isFile
+      ? '<div class="reading-notice">⚠️ 汉字注音需要启动本地服务：请双击 <b>start.bat</b> 打开，而不是直接双击 index.html</div>'
+      : '<div class="reading-notice">⚠️ 注音词典加载失败，已降级为无注音模式</div>';
     var html = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">';
     html += plainHtml(state.article);
     html += '</div>';
-    box.innerHTML = html;
+    box.innerHTML = notice + html;
     bindCharClick(box);
   }
 
