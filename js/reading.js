@@ -20,7 +20,8 @@
     annotatedText: null, // 上次注音对应的文章文本（用于判断缓存是否过期）
     hideRomaji: false,
     typingActive: false,
-    generating: false
+    generating: false,
+    articleIdx: null    // 内置文章下标（有预生成朗读音频）；AI 生成为 null
   };
 
   // 需求卡片定义（每组末尾都有「自定义」）
@@ -91,7 +92,7 @@
 
   // 缓存 key：文章文本 → 注音 HTML
   function cacheKey(text) {
-    return 'kana-furigana-v1-' + text.length + '-' + text.slice(0, 50);
+    return 'kana-furigana-v2-' + text.length + '-' + text.slice(0, 50);
   }
 
   // 处理 kuroshiro 返回的 furigana HTML：
@@ -120,7 +121,11 @@
       pieces.forEach(function (p) {
         if (p.type === 'kana') {
           inserted = true;
-          frag.appendChild(htmlToEl(plainHtml(p.text)));
+          // plainHtml 会为每个假名生成一个 <span>，必须全部追加
+          // （此前只取 firstChild，导致每个假名串只剩第一个假名）
+          var holder = document.createElement('div');
+          holder.innerHTML = plainHtml(p.text);
+          while (holder.firstChild) frag.appendChild(holder.firstChild);
         } else {
           frag.appendChild(document.createTextNode(p.text));
         }
@@ -144,13 +149,6 @@
     }
     if (cur) parts.push({ type: curIsKana ? 'kana' : 'other', text: cur });
     return parts.filter(function (p) { return p.type === 'kana'; });
-  }
-
-  // HTML 字符串 → DOM 元素
-  function htmlToEl(html) {
-    var d = document.createElement('div');
-    d.innerHTML = html;
-    return d.firstChild;
   }
 
   // 遍历文本节点（不含 ruby 内部）
@@ -281,7 +279,7 @@
         var idx = parseInt(card.getAttribute('data-idx'), 10);
         var item = lib[idx];
         if (!item) return;
-        loadArticle(item.text);
+        loadArticle(item.text, idx);
       };
     });
   }
@@ -446,6 +444,7 @@
     if (state.typingActive) {
       view.style.display = 'none';
       wrap.style.display = 'block';
+      stopReadAloud();
       TypingUI.start(state.article, state.parsed);    } else {
       wrap.style.display = 'none';
       renderArticle();
@@ -457,10 +456,12 @@
     var bar = el('reading-toolbar');
     if (!bar) return;
     bar.innerHTML =
+      (state.articleIdx != null ? '<button class="btn btn-primary" id="btn-reading-read">朗读全文</button>' : '') +
       '<button class="btn btn-secondary" id="btn-reading-hide">' + (state.hideRomaji ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<button class="btn btn-primary" id="btn-reading-typing">打字练习</button>' +
       '<button class="btn btn-secondary" id="btn-reading-regenerate">重新生成</button>';
 
+    bindReadAloud();
     el('btn-reading-hide').onclick = function () {
       state.hideRomaji = !state.hideRomaji;
       renderArticle();
@@ -481,6 +482,7 @@
   function renderArticle() {
     var box = el('reading-article');
     if (!box) return;
+    stopReadAloud();
     var pending = !state.annotated || state.annotatedText !== state.article;
     if (pending) {
       box.innerHTML = '<div class="reading-loading">正在加载注音...</div>';
@@ -569,6 +571,153 @@
         var word = span.getAttribute('data-reading') || span.getAttribute('data-kana');
         if (window.UI && window.UI.speak) window.UI.speak(word);
       };
+    });
+  }
+
+  // ---------- 整篇朗读 · 跟读高亮 ----------
+  // 音频 + 词级时间戳由 tools/gen_tts.py 离线生成到 assets/tts/lib-<idx>.{mp3,json}
+  var player = null;   // { audio, ranges, items, hl, container, raf }
+
+  // 取元素的基础文本，跳过 ruby 的 rt/rp（汉字 span 的注音不参与对齐）
+  function baseText(node) {
+    var s = '';
+    (function walk(n) {
+      for (var i = 0; i < n.childNodes.length; i++) {
+        var c = n.childNodes[i];
+        if (c.nodeType === 3) s += c.nodeValue;
+        else if (c.nodeType === 1 && c.tagName !== 'RT' && c.tagName !== 'RP') walk(c);
+      }
+    })(node);
+    return s;
+  }
+
+  // 建立「正文（去标点）→ DOM 元素」映射：spine 与 gen_tts 的边界文本同源，可直接 indexOf 对齐
+  function buildSpine(container) {
+    var chars = container.querySelectorAll('.reading-char');
+    var items = [];
+    var spine = '';
+    Array.prototype.forEach.call(chars, function (c) {
+      var base = baseText(c);
+      items.push({ el: c, start: spine.length, len: base.length });
+      spine += base;
+    });
+    return { items: items, spine: spine };
+  }
+
+  function stopReadAloud() {
+    var btn = el('btn-reading-read');
+    if (btn) { btn.textContent = '朗读全文'; btn.disabled = false; }
+    if (!player) return;
+    if (player.raf) cancelAnimationFrame(player.raf);
+    try { player.audio.pause(); } catch (e) {}
+    if (player.hl && player.hl.parentNode) player.hl.parentNode.removeChild(player.hl);
+    player = null;
+  }
+
+  function bindReadAloud() {
+    var btn = el('btn-reading-read');
+    if (!btn) return;
+    btn.onclick = function () {
+      if (player) {
+        if (player.audio.paused) { player.audio.play(); btn.textContent = '暂停朗读'; }
+        else { player.audio.pause(); btn.textContent = '继续朗读'; }
+        return;
+      }
+      startReadAloud(0);
+    };
+  }
+
+  function startReadAloud(attempt) {
+    if (state.articleIdx == null) return;
+    var box = el('reading-article');
+    var container = box ? box.querySelector('.reading-article') : null;
+    if (!container) {                       // 注音还在渲染
+      if (attempt < 12) setTimeout(function () { startReadAloud(attempt + 1); }, 250);
+      return;
+    }
+    var idx = state.articleIdx;
+
+    fetch('assets/tts/lib-' + idx + '.json').then(function (r) {
+      if (!r.ok) throw new Error('no-timing');
+      return r.json();
+    }).then(function (data) {
+      startWithTiming(container, idx, data.words || []);
+    }).catch(function () {
+      var btn = el('btn-reading-read');
+      if (btn) { btn.textContent = '无朗读音频'; btn.disabled = true; }
+    });
+  }
+
+  function startWithTiming(container, idx, words) {
+    var spineData = buildSpine(container);
+    var spine = spineData.spine, items = spineData.items;
+
+    // 词 → 字符区间（贪心对齐；失败则全局找，再失败跳过）
+    var ranges = [];
+    var cursor = 0;
+    words.forEach(function (w) {
+      var t = w.t || '';
+      if (!t) return;
+      var pos = spine.indexOf(t, cursor);
+      if (pos < 0) pos = spine.indexOf(t);
+      if (pos < 0) return;
+      ranges.push({ s: pos, e: pos + t.length, start: w.start, dur: w.dur });
+      cursor = pos + t.length;
+    });
+    if (!ranges.length) return;
+
+    var hl = document.createElement('div');
+    hl.className = 'reading-highlight';
+    container.appendChild(hl);
+
+    var audio = new Audio('assets/tts/lib-' + idx + '.mp3');
+    player = { audio: audio, ranges: ranges, items: items, hl: hl, container: container, raf: 0 };
+
+    var btn = el('btn-reading-read');
+    audio.onended = stopReadAloud;
+    audio.onplay = function () { if (btn) btn.textContent = '暂停朗读'; };
+    audio.onpause = function () { if (btn && !audio.ended) btn.textContent = '继续朗读'; };
+
+    function placeHighlight(r) {
+      var rect = null;
+      items.forEach(function (it) {
+        if (it.start < r.e && it.start + it.len > r.s) {
+          var b = it.el.getBoundingClientRect();
+          if (!rect) rect = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+          else {
+            if (b.left < rect.left) rect.left = b.left;
+            if (b.top < rect.top) rect.top = b.top;
+            if (b.right > rect.right) rect.right = b.right;
+            if (b.bottom > rect.bottom) rect.bottom = b.bottom;
+          }
+        }
+      });
+      if (!rect) return;
+      var cb = container.getBoundingClientRect();
+      var padX = 5, padY = 4;
+      hl.style.left = (rect.left - cb.left - padX) + 'px';
+      hl.style.top = (rect.top - cb.top - padY) + 'px';
+      hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
+      hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
+      hl.classList.add('on');
+    }
+
+    function frame() {
+      if (!player || player.audio !== audio) return;
+      var tms = audio.currentTime * 1000;
+      var cur = null;                       // 当前词：最后一个 start <= 播放时间
+      for (var i = 0; i < ranges.length; i++) {
+        if (ranges[i].start <= tms) cur = ranges[i];
+        else break;
+      }
+      if (cur) placeHighlight(cur);
+      player.raf = requestAnimationFrame(frame);
+    }
+
+    audio.play().then(function () {
+      player.raf = requestAnimationFrame(frame);
+    }).catch(function () {
+      stopReadAloud();
     });
   }
 
@@ -765,8 +914,9 @@
 
   // ---------- 导出 ----------
   // 加载一篇文章（供精选文章/AI生成/测试复用）
-  function loadArticle(text) {
+  function loadArticle(text, idx) {
     state.article = text;
+    state.articleIdx = (typeof idx === 'number') ? idx : null;
     state.parsed = window.Typing.parseText(text);
     state.typingActive = false;
     state.hideRomaji = false;

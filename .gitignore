@@ -1,6 +1,9 @@
 # 私人配置，不上传
 config.json
 
+# 预生成的朗读音频 + 时间戳（用 tools/gen_tts.py 重新生成）
+assets/tts/
+
 # 系统文件
 node_modules/
 .DS_Store

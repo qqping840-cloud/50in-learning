@@ -1598,3 +1598,25 @@ button {
 }
 
 .practice-quiz-opt.wrong .chart-kana { color: var(--color-error); }
+
+/* ---------- 阅读页 · 整篇朗读跟读高亮 ---------- */
+.reading-article { position: relative; }
+
+.reading-highlight {
+  position: absolute;
+  left: 0; top: 0; width: 0; height: 0;
+  background: rgba(64, 156, 255, 0.22);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 0;
+  transition: left .18s ease, top .18s ease, width .18s ease, height .18s ease, opacity .25s ease;
+}
+
+.reading-highlight.on { opacity: 1; }
+
+.reading-article .reading-char,
+.reading-article .reading-space,
+.reading-article .reading-plain { position: relative; z-index: 1; }
+
+[data-theme="dark"] .reading-highlight { background: rgba(90, 180, 255, 0.26); }
