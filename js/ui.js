@@ -113,17 +113,9 @@
   // 防止快速连续点击时语音堆积/卡死
   var speakTimer = null;
   var curAudio = null;
-  function speak(text) {
-    if (speakTimer) clearTimeout(speakTimer);
-    // 1. 优先播放本地音频（assets/audio/<假名>.mp3），标准日语发音且秒出
-    try {
-      if (curAudio) { curAudio.pause(); curAudio = null; }
-      var a = new Audio('assets/audio/' + encodeURIComponent(text) + '.mp3');
-      curAudio = a;
-      a.play();
-      return;
-    } catch (e) { /* 播放失败则走 TTS 兜底 */ }
-    // 2. 兜底：浏览器 TTS
+
+  // 浏览器 TTS 兜底（本地音频缺失/播放失败时用，如单词读音没有对应 mp3）
+  function ttsSpeak(text) {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(text);
@@ -135,6 +127,25 @@
     }
     u.rate = 0.85;
     speakTimer = setTimeout(function () { window.speechSynthesis.speak(u); }, 50);
+  }
+
+  function speak(text) {
+    if (speakTimer) clearTimeout(speakTimer);
+    // 1. 优先播放本地音频（assets/audio/<假名>.mp3），标准日语发音且秒出
+    //    只有单个假名/拗音有 mp3；单词读音（如 やま）会 404 -> 异步回退 TTS
+    if (curAudio) { curAudio.pause(); curAudio = null; }
+    var a = new Audio('assets/audio/' + encodeURIComponent(text) + '.mp3');
+    curAudio = a;
+    var fellBack = false;
+    var fallback = function () {
+      if (fellBack) return;               // error 事件与 play() 拒绝可能都触发，防重复
+      fellBack = true;
+      if (curAudio === a) curAudio = null;
+      ttsSpeak(text);
+    };
+    a.onerror = fallback;
+    var p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(fallback);
   }
 
   // ---------- 主题（夜间模式） ----------
