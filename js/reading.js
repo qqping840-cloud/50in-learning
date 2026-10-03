@@ -517,10 +517,9 @@
   }
 
   // 看当前批注模式下某句译文是否可见
+  // 原文=不显示；句译=全显示；词译=也显示（用户切到词译是想看得更细）
   function showSent(mode, i) {
-    if (mode === 'sent') return true;
-    if (mode === 'word') return state.sentIndex === i;
-    return false;
+    return mode === 'sent' || mode === 'word';
   }
 
   // 批注渲染：从 state.annotated 整体重建容器。

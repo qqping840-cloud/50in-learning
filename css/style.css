@@ -1649,8 +1649,9 @@ button {
   border-radius: 999px;
   background: var(--color-surface, #f2f3f5);
   border: 1px solid transparent;
-  color: var(--color-text, #333);
+  color: var(--color-text, #333);   /* 必须显式设色，否则继承 .btn 的白字 -> 白底白字看不见 */
   cursor: pointer;
+  line-height: 1.4;
 }
 
 .anno-btn.active {
@@ -1678,14 +1679,15 @@ button {
 /* 词级批注：默认不打标（保持干净），悬停到词内任一字符时整词亮起 + 显示词义气泡 */
 .anno-word {
   position: relative;
+  display: inline-block;   /* 必须 inline-block，否则跨行时气泡定位会飞掉 */
   cursor: help;
   border-radius: .3rem;
   transition: background .12s ease;
 }
 
 .anno-word:hover {
-  background: rgba(64, 156, 255, .16);
-  box-shadow: 0 1px 0 rgba(64, 156, 255, .7);
+  background: rgba(64, 156, 255, .18);
+  border-radius: .25rem;
 }
 
 [data-theme="dark"] .anno-word:hover { background: rgba(90, 180, 255, .2); }
@@ -1696,16 +1698,16 @@ button {
   left: 50%;
   top: calc(100% + 6px);
   transform: translateX(-50%);
-  background: var(--color-text, #333);
+  background: #2b3440;
   color: #fff;
   font-size: .74rem;
   line-height: 1.2;
-  padding: .25rem .5rem;
+  padding: .3rem .55rem;
   border-radius: .4rem;
   white-space: nowrap;
-  z-index: 20;
+  z-index: 50;
   pointer-events: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
 }
 
 /* 纯 CSS 控制显示：悬停词即出气泡（无需 JS 绑事件） */
