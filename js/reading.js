@@ -21,7 +21,9 @@
     hideRomaji: false,
     typingActive: false,
     generating: false,
-    articleIdx: null    // 内置文章下标（有预生成朗读音频）；AI 生成为 null
+    articleIdx: null,   // 内置文章下标（有预生成朗读音频）；AI 生成为 null
+    articleRes: null,   // 结构化文章资源（带译文/词注），null=无
+    annoMode: 'sent'    // 翻译批注模式：off / sent / word（有译文时默认显示句译）
   };
 
   // 需求卡片定义（每组末尾都有「自定义」）
@@ -279,7 +281,7 @@
         var idx = parseInt(card.getAttribute('data-idx'), 10);
         var item = lib[idx];
         if (!item) return;
-        loadArticle(item.text, idx);
+        loadArticle(item.text, idx, item.res);
       };
     });
   }
@@ -441,6 +443,7 @@
     }
     view.style.display = 'block';
     renderToolbar();
+    renderAnnoBar();
     if (state.typingActive) {
       view.style.display = 'none';
       wrap.style.display = 'block';
@@ -478,6 +481,118 @@
     };
   }
 
+  // 翻译批注开关：原文 / 句译 / 词译（无结构化数据时隐藏）
+  function renderAnnoBar() {
+    var bar = el('reading-anno-bar');
+    if (!bar) return;
+    if (!state.articleRes) { bar.innerHTML = ''; return; }
+    function btn(mode, label) {
+      return '<button class="btn anno-btn' + (state.annoMode === mode ? ' active' : '') +
+        '" data-mode="' + mode + '">' + label + '</button>';
+    }
+    bar.innerHTML =
+      '<span class="anno-label">翻译</span>' +
+      btn('off', '原文') + btn('sent', '句译') + btn('word', '词译') +
+      '<span class="anno-hint">（句译常显；词译悬停看词义）</span>';
+    Array.prototype.forEach.call(bar.querySelectorAll('.anno-btn'), function (b) {
+      b.onclick = function () {
+        state.annoMode = b.getAttribute('data-mode');
+        renderAnnoBar();
+        applyAnnotation();
+      };
+    });
+  }
+
+  // 看当前批注模式下某句译文是否可见
+  function showSent(mode, i) {
+    if (mode === 'sent') return true;
+    if (mode === 'word') return state.sentIndex === i;
+    return false;
+  }
+
+  // 把结构化译文注入已渲染的 DOM（按".reading-char"累计文本 == 句子原文对齐）
+  function applyAnnotation() {
+    var box = el('reading-article');
+    var container = box ? box.querySelector('.reading-article') : null;
+    if (!container) return;
+    var res = state.articleRes;
+    Array.prototype.forEach.call(container.querySelectorAll('.reading-char'), function (c) {
+      c.classList.remove('anno-word');
+      var tip = c.querySelector(':scope > .anno-tip');
+      if (tip) tip.parentNode.removeChild(tip);
+    });
+    Array.prototype.forEach.call(container.querySelectorAll('.reading-sent'), function (s) { s.classList.remove('show'); });
+    if (!res || state.annoMode === 'off') return;
+
+    var mode = state.annoMode;
+    var chars = container.querySelectorAll('.reading-char');
+    var spine = '', p = 0;
+    var charPos = [];
+    Array.prototype.forEach.call(chars, function (c) {
+      var base = baseText(c);
+      charPos.push({ el: c, start: spine.length, len: base.length });
+      spine += base;
+    });
+
+    (res.sents || []).forEach(function (sent, i) {
+      // spine 只累计 .reading-char 的文本，标点渲染在 .reading-space 里
+      // 所以比对时把 ja 的标点去掉
+      var needle = (sent.ja || '').replace(/\s/g, '').replace(/[、。！？，．]/g, '');
+      if (!needle) return;
+      var at = spine.indexOf(needle, p);
+      if (at < 0) return;
+      p = at + needle.length;
+      var end = at + needle.length, from = at;
+      var nodes = charPos.filter(function (cp) { return cp.start >= from && cp.start < end; });
+      if (!nodes.length) return;
+
+      // 句级：包一个块级 span，把译文插在后面
+      var sentWrap = document.createElement('span');
+      sentWrap.className = 'reading-sent' + (showSent(mode, i) ? ' show' : '');
+      var opener = document.createElement('span');
+      opener.className = 'reading-sent-open';
+      nodes[0].el.parentNode.insertBefore(sentWrap, nodes[0].el);
+      sentWrap.appendChild(opener);
+      nodes.forEach(function (cp) { sentWrap.appendChild(cp.el); });
+      var zh = document.createElement('span');
+      zh.className = 'anno-zh-sent';
+      zh.textContent = sent.zh || '';
+      sentWrap.appendChild(zh);
+
+      // 词级：整词所有字符加 .anno-word，词的首个字符挂气泡（悬停时显示）
+      (sent.words || []).forEach(function (w) {
+        if (!w.zh) return;                  // 助词/空词义：不标，避免虚线噪音
+        var t = (w.t || '').replace(/\s/g, '');
+        if (!t) return;
+        var wpos = -1, rel = 0;
+        for (var a = from; a + t.length <= end; a++) {
+          if (spine.substr(a, t.length) === t) { wpos = a; break; }
+        }
+        if (wpos < 0) return;
+        var wend = wpos + t.length;
+        var touched = [];
+        nodes.forEach(function (cp) {
+          if (cp.start < wend && cp.start + cp.len > wpos) {
+            cp.el.classList.add('anno-word');
+            touched.push(cp.el);
+          }
+        });
+        if (!touched.length) return;   // 词跨到未渲染字符时忽略
+        // 气泡只挂在词的首个字符上，悬停该词任一字符都显示
+        if (!touched[0].querySelector(':scope > .anno-tip')) {
+          var tip = document.createElement('span');
+          tip.className = 'anno-tip';
+          tip.textContent = w.zh;
+          touched[0].appendChild(tip);
+          touched.forEach(function (elm) {
+            elm.addEventListener('mouseenter', function () { tip.classList.add('show'); });
+            elm.addEventListener('mouseleave', function () { tip.classList.remove('show'); });
+          });
+        }
+      });
+    });
+  }
+
   // 阅读模式：逐假名 furigana 展示，可点读
   function renderArticle() {
     var box = el('reading-article');
@@ -507,8 +622,12 @@
       state.annotated = html;
       state.annotatedText = state.article;
       var hide = state.hideRomaji;
-      box.innerHTML = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">' + html + '</div>';
+      var parts = [];
+      if (state.articleRes) parts.push('<div class="reading-block-title">' + esc(state.articleRes.title || '') + '</div>');
+      parts.push('<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">' + html + '</div>');
+      box.innerHTML = parts.join('');
       bindCharClick(box);
+      applyAnnotation();
     });
   }
 
@@ -668,7 +787,7 @@
 
     var hl = document.createElement('div');
     hl.className = 'reading-highlight';
-    container.appendChild(hl);
+    container.parentNode.appendChild(hl);
 
     var audio = new Audio('assets/tts/lib-' + idx + '.mp3');
     player = { audio: audio, ranges: ranges, items: items, hl: hl, container: container, raf: 0 };
@@ -694,9 +813,10 @@
       });
       if (!rect) return;
       var cb = container.getBoundingClientRect();
+      var pb = container.parentNode.getBoundingClientRect();
       var padX = 5, padY = 4;
       hl.style.left = (rect.left - cb.left - padX) + 'px';
-      hl.style.top = (rect.top - cb.top - padY) + 'px';
+      hl.style.top = (rect.top - pb.top - padY) + 'px';
       hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
       hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
       hl.classList.add('on');
@@ -914,12 +1034,14 @@
 
   // ---------- 导出 ----------
   // 加载一篇文章（供精选文章/AI生成/测试复用）
-  function loadArticle(text, idx) {
+  function loadArticle(text, idx, res) {
     state.article = text;
     state.articleIdx = (typeof idx === 'number') ? idx : null;
+    state.articleRes = res || null;
     state.parsed = window.Typing.parseText(text);
     state.typingActive = false;
     state.hideRomaji = false;
+    state.annoMode = res ? 'sent' : 'off';
     renderArticleArea();
   }
 

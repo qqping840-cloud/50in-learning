@@ -1601,6 +1601,7 @@ button {
 
 /* ---------- 阅读页 · 整篇朗读跟读高亮 ---------- */
 .reading-article { position: relative; }
+.reading-article { overflow: visible; }
 
 .reading-highlight {
   position: absolute;
@@ -1620,3 +1621,91 @@ button {
 .reading-article .reading-plain { position: relative; z-index: 1; }
 
 [data-theme="dark"] .reading-highlight { background: rgba(90, 180, 255, 0.26); }
+
+/* ---------- 阅读页 · 翻译批注 ---------- */
+#reading-article { position: relative; }
+
+.reading-block-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 .5rem;
+  opacity: .85;
+}
+
+#reading-anno-bar {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  margin: .1rem 0 .7rem;
+}
+
+.anno-label { font-size: .82rem; opacity: .65; }
+.anno-hint { font-size: .76rem; opacity: .5; }
+
+.anno-btn {
+  padding: .25rem .7rem;
+  font-size: .82rem;
+  border-radius: 999px;
+  background: var(--color-surface, #f2f3f5);
+  border: 1px solid transparent;
+  color: var(--color-text, #333);
+  cursor: pointer;
+}
+
+.anno-btn.active {
+  background: var(--color-primary, #409cff);
+  color: #fff;
+}
+
+/* 句级批注：原文照排，译文另起一行 */
+.reading-sent { display: block; }
+.reading-sent-open { display: none; }
+
+.anno-zh-sent {
+  display: none;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: var(--color-muted, #7a7f88);
+  border-left: 2px solid rgba(64, 156, 255, .45);
+  padding-left: .55rem;
+  margin: .15rem 0 .55rem .1rem;
+  font-family: inherit;
+}
+
+.reading-sent.show .anno-zh-sent { display: block; }
+
+/* 词级批注：默认不打标（保持干净），悬停到词内任一字符时整词亮起 + 显示词义气泡 */
+.anno-word {
+  position: relative;
+  cursor: help;
+  border-radius: .3rem;
+  transition: background .12s ease;
+}
+
+.anno-word:hover {
+  background: rgba(64, 156, 255, .16);
+  box-shadow: 0 1px 0 rgba(64, 156, 255, .7);
+}
+
+[data-theme="dark"] .anno-word:hover { background: rgba(90, 180, 255, .2); }
+
+.anno-tip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px);
+  transform: translateX(-50%);
+  background: var(--color-text, #333);
+  color: #fff;
+  font-size: .74rem;
+  line-height: 1.2;
+  padding: .25rem .5rem;
+  border-radius: .4rem;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+
+.anno-tip.show { display: block; }
