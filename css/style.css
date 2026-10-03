@@ -1694,7 +1694,7 @@ button {
   display: none;
   position: absolute;
   left: 50%;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   transform: translateX(-50%);
   background: var(--color-text, #333);
   color: #fff;
@@ -1708,4 +1708,5 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
 }
 
-.anno-tip.show { display: block; }
+/* 纯 CSS 控制显示：悬停词即出气泡（无需 JS 绑事件） */
+.anno-word:hover > .anno-tip { display: block; }

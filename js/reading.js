@@ -53,10 +53,21 @@
   var EXTRA_KANA = {
     'っ': 'xtsu', 'ゃ': 'ya', 'ゅ': 'yu', 'ょ': 'yo', 'ゎ': 'wa', 'ゔ': 'vu'
   };
-  // 查假名罗马音：优先 getKana，其次补充映射
+  // 片假名 → 罗马音（data.js 只按平假名建了索引，片假名要单独映射）
+  var KATA_ROMAJI = (function () {
+    var m = {};
+    (window.KANA_DATA || []).forEach(function (k) {
+      if (k.katakana) m[k.katakana] = k.romaji;
+    });
+    m['ッ'] = 'xtsu'; m['ャ'] = 'ya'; m['ュ'] = 'yu'; m['ョ'] = 'yo';
+    m['ヮ'] = 'wa'; m['ヴ'] = 'vu';
+    return m;
+  })();
+  // 查假名罗马音：平假名优先 getKana，其次片假名表，再补充小假名
   function kanaRomaji(ch) {
     var k = getKana(ch);
     if (k) return k.romaji;
+    if (KATA_ROMAJI[ch]) return KATA_ROMAJI[ch];
     if (EXTRA_KANA[ch]) return EXTRA_KANA[ch];
     return null;
   }
@@ -94,7 +105,7 @@
 
   // 缓存 key：文章文本 → 注音 HTML
   function cacheKey(text) {
-    return 'kana-furigana-v2-' + text.length + '-' + text.slice(0, 50);
+    return 'kana-furigana-v4-' + text.length + '-' + text.slice(0, 50);
   }
 
   // 处理 kuroshiro 返回的 furigana HTML：
@@ -129,6 +140,8 @@
           holder.innerHTML = plainHtml(p.text);
           while (holder.firstChild) frag.appendChild(holder.firstChild);
         } else {
+          // 标点等非假名段：原样保留（此前被丢弃，导致句号/顿号丢失）
+          inserted = true;
           frag.appendChild(document.createTextNode(p.text));
         }
       });
@@ -150,7 +163,7 @@
       else { parts.push({ type: curIsKana ? 'kana' : 'other', text: cur }); curIsKana = isK; cur = ch; }
     }
     if (cur) parts.push({ type: curIsKana ? 'kana' : 'other', text: cur });
-    return parts.filter(function (p) { return p.type === 'kana'; });
+    return parts;   // 假名段与非假名段都要（此前只返回 kana，导致标点丢失）
   }
 
   // 遍历文本节点（不含 ruby 内部）
@@ -510,89 +523,163 @@
     return false;
   }
 
-  // 把结构化译文注入已渲染的 DOM（按".reading-char"累计文本 == 句子原文对齐）
+  // 批注渲染：从 state.annotated 整体重建容器。
+  // 字符级标签（sentOf / wordOf）+ 区间边界开闭包裹；一个词 = 一个整体 span。
+  // 每次整体重建，绝不叠加（旧的逐字符打标会套娃 → UI 重叠）。
   function applyAnnotation() {
     var box = el('reading-article');
     var container = box ? box.querySelector('.reading-article') : null;
     if (!container) return;
     var res = state.articleRes;
-    Array.prototype.forEach.call(container.querySelectorAll('.reading-char'), function (c) {
-      c.classList.remove('anno-word');
-      var tip = c.querySelector(':scope > .anno-tip');
-      if (tip) tip.parentNode.removeChild(tip);
-    });
-    Array.prototype.forEach.call(container.querySelectorAll('.reading-sent'), function (s) { s.classList.remove('show'); });
-    if (!res || state.annoMode === 'off') return;
-
     var mode = state.annoMode;
-    var chars = container.querySelectorAll('.reading-char');
-    var spine = '', p = 0;
-    var charPos = [];
-    Array.prototype.forEach.call(chars, function (c) {
-      var base = baseText(c);
-      charPos.push({ el: c, start: spine.length, len: base.length });
-      spine += base;
+
+    container.className = 'reading-article' + (state.hideRomaji ? ' hide-romaji' : '');
+
+    if (!res || mode === 'off') { container.innerHTML = state.annotated || ''; return; }
+
+    // --- 1. 顶层节点序列，记录每个字节点的全局字符偏移 ---
+    var tmp = document.createElement('div');
+    tmp.innerHTML = state.annotated || '';
+    var items = [];
+    var g = 0;
+    Array.prototype.forEach.call(tmp.childNodes, function (nd) {
+      if (nd.nodeType === 1 && nd.classList && nd.classList.contains('reading-char')) {
+        var t = baseText(nd);
+        items.push({ el: nd, isChar: true, gStart: g, len: t.length });
+        g += t.length;
+      } else {
+        // 标点 / 文本节点：位置 = 当前偏移（挂在前面字符所属的句里）
+        items.push({ el: nd, isChar: false, gStart: g, len: 0 });
+      }
     });
+    var spine = items.filter(function (x) { return x.isChar; }).map(function (x) {
+      return baseText(x.el);
+    }).join('');
+    var nChars = g;
 
-    (res.sents || []).forEach(function (sent, i) {
-      // spine 只累计 .reading-char 的文本，标点渲染在 .reading-space 里
-      // 所以比对时把 ja 的标点去掉
+    // --- 2. 句区间 + 词区间（在 spine 坐标系） ---
+    // 严格顺序推进：每句从上一句结束处开始找；找不到就记为 null（该句不批注）
+    var sentRanges = [];   // { from, to, zh, words:[{from,to,zh}] }
+    var p = 0;
+    var missList = [];
+    (res.sents || []).forEach(function (sent, idx) {
       var needle = (sent.ja || '').replace(/\s/g, '').replace(/[、。！？，．]/g, '');
-      if (!needle) return;
+      if (!needle) { sentRanges.push(null); missList.push(idx + ':empty'); return; }
       var at = spine.indexOf(needle, p);
-      if (at < 0) return;
-      p = at + needle.length;
-      var end = at + needle.length, from = at;
-      var nodes = charPos.filter(function (cp) { return cp.start >= from && cp.start < end; });
-      if (!nodes.length) return;
-
-      // 句级：包一个块级 span，把译文插在后面
-      var sentWrap = document.createElement('span');
-      sentWrap.className = 'reading-sent' + (showSent(mode, i) ? ' show' : '');
-      var opener = document.createElement('span');
-      opener.className = 'reading-sent-open';
-      nodes[0].el.parentNode.insertBefore(sentWrap, nodes[0].el);
-      sentWrap.appendChild(opener);
-      nodes.forEach(function (cp) { sentWrap.appendChild(cp.el); });
-      var zh = document.createElement('span');
-      zh.className = 'anno-zh-sent';
-      zh.textContent = sent.zh || '';
-      sentWrap.appendChild(zh);
-
-      // 词级：整词所有字符加 .anno-word，词的首个字符挂气泡（悬停时显示）
+      if (at < 0) { sentRanges.push(null); missList.push(idx + ':' + needle.slice(0, 12)); return; }
+      var end = at + needle.length;
+      p = end;
+      var ws = [];
+      var q = at;
       (sent.words || []).forEach(function (w) {
-        if (!w.zh) return;                  // 助词/空词义：不标，避免虚线噪音
         var t = (w.t || '').replace(/\s/g, '');
-        if (!t) return;
-        var wpos = -1, rel = 0;
-        for (var a = from; a + t.length <= end; a++) {
-          if (spine.substr(a, t.length) === t) { wpos = a; break; }
-        }
-        if (wpos < 0) return;
-        var wend = wpos + t.length;
-        var touched = [];
-        nodes.forEach(function (cp) {
-          if (cp.start < wend && cp.start + cp.len > wpos) {
-            cp.el.classList.add('anno-word');
-            touched.push(cp.el);
-          }
-        });
-        if (!touched.length) return;   // 词跨到未渲染字符时忽略
-        // 气泡只挂在词的首个字符上，悬停该词任一字符都显示
-        if (!touched[0].querySelector(':scope > .anno-tip')) {
-          var tip = document.createElement('span');
-          tip.className = 'anno-tip';
-          tip.textContent = w.zh;
-          touched[0].appendChild(tip);
-          touched.forEach(function (elm) {
-            elm.addEventListener('mouseenter', function () { tip.classList.add('show'); });
-            elm.addEventListener('mouseleave', function () { tip.classList.remove('show'); });
-          });
-        }
+        if (!t || !w.zh) return;
+        var wa = spine.indexOf(t, q);
+        if (wa < 0 || wa + t.length > end) return;
+        q = wa + t.length;
+        ws.push({ from: wa, to: wa + t.length, zh: w.zh });
+      });
+      sentRanges.push({ from: at, to: end, zh: sent.zh || '', words: ws });
+    });
+    // 诊断：哪些句没匹配上（仅开发期可见）
+    if (missList.length && window.console && console.warn) {
+      console.warn('[annotation] 未匹配的句子:', missList.join(' | '));
+    }
+
+    // --- 3. 字符 -> (句下标, 词下标) ---
+    var sentOf = new Array(nChars).fill(-1);
+    var wordOf = new Array(nChars).fill(-1);
+    sentRanges.forEach(function (rg, si) {
+      if (!rg) return;
+      for (var c = rg.from; c < rg.to; c++) sentOf[c] = si;
+      rg.words.forEach(function (w, wi) {
+        for (var c2 = w.from; c2 < w.to; c2++) wordOf[c2] = si * 1000 + wi;
       });
     });
-  }
 
+    // --- 4. 一遍遍历：按标签开闭包裹 ---
+    var frag = document.createDocumentFragment();
+    var curSent = null, curSentIdx = -1;
+    var curWord = null, curWordKey = -1;
+
+    function closeWord() {
+      if (curWord && !curWord.childNodes.length) curWord.parentNode.removeChild(curWord);
+      curWord = null; curWordKey = -1;
+    }
+    function closeSent() {
+      closeWord();
+      if (curSent) {
+        var rg = sentRanges[curSentIdx];
+        if (rg && rg.zh) {
+          var zh = document.createElement('span');
+          zh.className = 'anno-zh-sent';
+          zh.textContent = rg.zh;
+          curSent.appendChild(zh);
+        }
+        if (showSent(mode, curSentIdx)) curSent.classList.add('show');
+      }
+      curSent = null; curSentIdx = -1;
+    }
+    function ensureSent(si) {
+      if (si === curSentIdx && curSent) return;
+      closeSent();
+      if (si < 0) return;
+      curSentIdx = si;
+      curSent = document.createElement('span');
+      curSent.className = 'reading-sent';
+      frag.appendChild(curSent);
+    }
+
+    // pendingCloseSent: 字符已到句末但可能还有尾随标点，延迟到下一个「字」或流末尾才真正收句
+    var pendingSentClose = false;
+
+    function flushPending() {
+      if (pendingSentClose) { pendingSentClose = false; closeSent(); }
+    }
+
+    items.forEach(function (it) {
+      if (!it.isChar) {
+        // 标点：优先归入当前（尚未关闭的）句，这样句末「。」会跟在句内
+        if (curSent) curSent.appendChild(it.el);
+        else frag.appendChild(it.el);
+        return;
+      }
+      // 新字符到来前，先把上一句的「待关闭」落实
+      flushPending();
+
+      var si = sentOf[it.gStart];
+      ensureSent(si);
+      var host = curSent || frag;
+
+      var wkey = wordOf[it.gStart];
+      if (wkey !== curWordKey) {
+        closeWord();
+        if (wkey >= 0) {
+          curWordKey = wkey;
+          var rg2 = sentRanges[si];
+          var wd = rg2.words[wkey - si * 1000];
+          curWord = document.createElement('span');
+          curWord.className = 'anno-word';
+          var tip = document.createElement('span');
+          tip.className = 'anno-tip';
+          tip.textContent = wd.zh;
+          curWord.appendChild(tip);
+          host.appendChild(curWord);
+        }
+      }
+      (curWord || host).appendChild(it.el);
+
+      // 字符到达句末 -> 标记待关闭（标点会在此之前归入本句）
+      var rg3 = sentRanges[si];
+      if (rg3 && it.gStart + it.len >= rg3.to) pendingSentClose = true;
+    });
+    pendingSentClose = false;
+    closeSent();
+
+    container.innerHTML = '';
+    container.appendChild(frag);
+    bindCharClick(box);
+  }
   // 阅读模式：逐假名 furigana 展示，可点读
   function renderArticle() {
     var box = el('reading-article');
