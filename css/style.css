@@ -1647,11 +1647,12 @@ button {
   padding: .25rem .7rem;
   font-size: .82rem;
   border-radius: 999px;
-  background: var(--color-surface, #f2f3f5);
+  background: #e6e8ec;
   border: 1px solid transparent;
-  color: var(--color-text, #333);   /* 必须显式设色，否则继承 .btn 的白字 -> 白底白字看不见 */
+  color: #1c1917;   /* 固定深色：底色恒为浅灰，不能跟随主题变量（暗色下是米白 -> 看不清） */
   cursor: pointer;
   line-height: 1.4;
+  font-weight: 600;
 }
 
 .anno-btn.active {
