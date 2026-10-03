@@ -33,6 +33,12 @@
     return a;
   }
 
+  // 平/片假名随机取字形（模拟真实文本里两种假名混排）
+  // 注意：只影响显示，判题身份仍用 hiragana
+  function randKana(k) {
+    return Math.random() < 0.5 ? k.hiragana : k.katakana;
+  }
+
   // 从全部假名里随机取 n 个干扰项（排除 exclude）
   function pickDistractors(exclude, n) {
     var pool = KANA_DATA.filter(function (k) { return k.hiragana !== exclude.hiragana; });
@@ -410,7 +416,7 @@
       var options = shuffle([kana].concat(distractors));
       optBox.innerHTML = options.map(function (o) {
         return '<button class="practice-quiz-opt" data-hira="' + esc(o.hiragana) + '">' +
-          '<span class="chart-kana">' + esc(o.hiragana) + '</span>' +
+          '<span class="chart-kana">' + esc(randKana(o)) + '</span>' +
           '<span class="chart-romaji">' + esc(o.romaji) + '</span>' +
         '</button>';
       }).join('');
@@ -455,7 +461,7 @@
 
     // 正向模式：翻卡 + 答对/答错
     var front, back;
-    front = '<div class="flashcard-face"><div class="kana-char big">' + esc(kana.hiragana) + '</div></div>';
+    front = '<div class="flashcard-face"><div class="kana-char big">' + esc(randKana(kana)) + '</div></div>';
     back =
       '<div class="flashcard-face flashcard-back">' +
         '<div class="kana-pair">' +
