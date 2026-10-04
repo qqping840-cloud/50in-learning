@@ -64,7 +64,10 @@
     quizIndex: 0,
     quizScore: 0,
     quizCurrent: null,       // { kana, type, options, answer }
-    quizLocked: false
+    quizLocked: false,
+    quizMode: 'all',         // all=综合测验（已学假名随机）, row=行测验
+    quizRow: null,           // 行测验选定的行 id
+    quizStage: 'setup'       // setup=选模式/选行, quiz=答题中, result=结果
   };
 
   // ---------- 键盘联动 ----------
@@ -519,16 +522,64 @@
 
   // ---------- 测验页 ----------
 
-  // 生成一道题：type 0=看假名选读音, 1=听发音选假名, 2=看读音选假名
-  // 只从已学过的假名（box >= 1）中抽题
-  function makeQuizQuestion() {
-    var learned = KANA_DATA.filter(function (k) {
+  // 已开始学的假名（box >= 1）
+  function learnedKana() {
+    return KANA_DATA.filter(function (k) {
       return Storage.getKana(k.hiragana).box >= 1;
     });
-    if (learned.length === 0) learned = KANA_DATA.slice(0, 5); // 还没学时先考第一行
-    var kana = learned[Math.floor(Math.random() * learned.length)];
+  }
+
+  // 行测验：选定的行在本地是否"已学"（该行至少有一个假名 box >= 1）
+  function isRowStudied(row) {
+    var list = getKanaByRow(row);
+    return list.some(function (k) { return Storage.getKana(k.hiragana).box >= 1; });
+  }
+
+  // 生成一道题：type 0=看假名选读音, 1=听发音选假名, 2=看读音选假名
+  // 综合模式：从已学过的假名中随机抽题
+  // 行测验模式：只从选定行的"已学"假名中抽题，干扰项 = 2 个同行 + 1 个其他已学
+  function makeQuizQuestion() {
+    var rowMode = (state.quizMode === 'row' && state.quizRow);
+    var kana;
+    var distractors = [];
+
+    if (rowMode) {
+      // 题目：只在选定行的已学假名里出
+      var inRow = getKanaByRow(state.quizRow).filter(function (k) {
+        return Storage.getKana(k.hiragana).box >= 1;
+      });
+      if (!inRow.length) inRow = getKanaByRow(state.quizRow); // 该行尚未学：退化为整行
+      kana = inRow[Math.floor(Math.random() * inRow.length)];
+
+      // 干扰项 1-2：同行其他假名（排除答案），最多 2 个
+      var sameRowPool = getKanaByRow(state.quizRow).filter(function (k) {
+        return k.hiragana !== kana.hiragana;
+      });
+      distractors = shuffle(sameRowPool).slice(0, 2);
+
+      // 干扰项 3：来自"除本行外的其他已学假名"
+      var otherLearned = learnedKana().filter(function (k) {
+        return k.row !== state.quizRow && k.hiragana !== kana.hiragana;
+      });
+      if (otherLearned.length) {
+        distractors.push(otherLearned[Math.floor(Math.random() * otherLearned.length)]);
+      }
+      // 补足 3 个：从全库随机（排除答案与已选）
+      if (distractors.length < 3) {
+        var taken = {};
+        taken[kana.hiragana] = 1;
+        distractors.forEach(function (d) { taken[d.hiragana] = 1; });
+        var rest = shuffle(KANA_DATA.filter(function (k) { return !taken[k.hiragana]; }));
+        while (distractors.length < 3 && rest.length) distractors.push(rest.pop());
+      }
+    } else {
+      var learned = learnedKana();
+      if (learned.length === 0) learned = KANA_DATA.slice(0, 5); // 还没学时先考第一行
+      kana = learned[Math.floor(Math.random() * learned.length)];
+      distractors = pickDistractors(kana, 3);
+    }
+
     var type = Math.floor(Math.random() * 3);
-    var distractors = pickDistractors(kana, 3);
     var options, answer;
     if (type === 0) {
       options = shuffle([kana].concat(distractors)).map(function (k) { return k.romaji; });
@@ -540,6 +591,79 @@
     return { kana: kana, type: type, options: options, answer: answer };
   }
 
+  // 测验设置界面：综合测验 / 行测验（选一行）
+  function renderQuizSetup(result) {
+    var rows = window.ROWS || [];
+    var html =
+      '<div class="quiz-setup">' +
+        '<div class="quiz-setup-title">选择测验方式</div>' +
+        '<button class="quiz-mode-card' + (state.quizMode === 'all' ? ' active' : '') + '" data-mode="all">' +
+          '<div class="qmc-title">综合测验</div>' +
+          '<div class="qmc-desc">从所有学过的假名里随机出题</div>' +
+        '</button>' +
+        '<button class="quiz-mode-card' + (state.quizMode === 'row' ? ' active' : '') + '" data-mode="row">' +
+          '<div class="qmc-title">行测验</div>' +
+          '<div class="qmc-desc">选定一行，只考这一行的假名</div>' +
+        '</button>';
+
+    // 行测验：展开行列表（只列已学的行）
+    if (state.quizMode === 'row') {
+      var studied = rows.filter(function (r) { return isRowStudied(r); });
+      html += '<div class="quiz-row-picker">';
+      if (!studied.length) {
+        html += '<div class="quiz-row-empty">还没有学过的行，先去「学习」页学几个假名吧</div>';
+      } else {
+        studied.forEach(function (r) {
+          var info = ROW_INFO[r] || {};
+          var list = getKanaByRow(r);
+          var learned = list.filter(function (k) { return Storage.getKana(k.hiragana).box >= 1; }).length;
+          html +=
+            '<button class="quiz-row-chip' + (state.quizRow === r ? ' active' : '') + '" data-row="' + esc(r) + '">' +
+              '<span class="qrc-name">' + esc(info.name || r) + '</span>' +
+              '<span class="qrc-count">' + learned + '/' + list.length + '</span>' +
+            '</button>';
+        });
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+    result.innerHTML = html;
+
+    // 模式点击
+    Array.prototype.forEach.call(result.querySelectorAll('.quiz-mode-card'), function (card) {
+      card.onclick = function () {
+        var mode = card.getAttribute('data-mode');
+        if (mode === 'all') {
+          // 综合测验：直接开始
+          state.quizMode = 'all';
+          state.quizRow = null;
+          startQuiz();
+        } else {
+          // 行测验：展开行列表让用户选
+          state.quizMode = 'row';
+          renderQuiz();
+        }
+      };
+    });
+    // 行点击 -> 直接开始
+    Array.prototype.forEach.call(result.querySelectorAll('.quiz-row-chip'), function (chip) {
+      chip.onclick = function () {
+        state.quizRow = chip.getAttribute('data-row');
+        startQuiz();
+      };
+    });
+  }
+
+  // 开始一轮测验
+  function startQuiz() {
+    state.quizIndex = 0;
+    state.quizScore = 0;
+    state.quizCurrent = null;
+    state.quizStage = 'quiz';
+    renderQuiz();
+  }
+
   function renderQuiz() {
     var header = el('quiz-header');
     var question = el('quiz-question');
@@ -548,28 +672,54 @@
     var result = el('quiz-result');
     if (!header || !question || !optionsBox || !feedback || !result) return;
 
-    // 全部答完：显示结果
-    if (state.quizIndex >= state.quizTotal) {
+    // 阶段 1：选模式（综合 / 行测验）
+    if (state.quizStage === 'setup') {
+      header.innerHTML = '';
+      question.innerHTML = '';
+      optionsBox.innerHTML = '';
+      feedback.innerHTML = '';
+      renderQuizSetup(result);
+      return;
+    }
+
+    // 阶段 3：全部答完，显示结果
+    if (state.quizStage === 'result') {
       header.innerHTML = '';
       question.innerHTML = '';
       optionsBox.innerHTML = '';
       feedback.innerHTML = '';
       var pct = Math.round(state.quizScore / state.quizTotal * 100);
+      var modeName = (state.quizMode === 'row' && state.quizRow)
+        ? ('行测验：' + (ROW_INFO[state.quizRow] ? ROW_INFO[state.quizRow].name : state.quizRow))
+        : '综合测验';
       result.innerHTML =
+        '<div class="quiz-result-mode">' + esc(modeName) + '</div>' +
         '<div class="result-score">' + state.quizScore + ' / ' + state.quizTotal + '</div>' +
         '<div class="result-pct">正确率 ' + pct + '%</div>' +
         '<div class="result-judge">' + (pct >= 80 ? '合格！' : '继续加油！') + '</div>' +
-        '<button class="btn btn-primary" id="btn-quiz-retry">再来一次</button>';
+        '<div class="quiz-result-actions">' +
+          '<button class="btn btn-primary" id="btn-quiz-retry">再来一次</button>' +
+          '<button class="btn btn-secondary" id="btn-quiz-back">换模式</button>' +
+        '</div>';
       el('btn-quiz-retry').onclick = function () {
         state.quizIndex = 0;
         state.quizScore = 0;
         state.quizCurrent = null;
+        state.quizStage = 'quiz';
+        renderQuiz();
+      };
+      el('btn-quiz-back').onclick = function () {
+        state.quizIndex = 0;
+        state.quizScore = 0;
+        state.quizCurrent = null;
+        state.quizStage = 'setup';
         renderQuiz();
       };
       return;
     }
 
-    // 新一轮测验重置
+    // 阶段 2：答题（state.quizStage === 'quiz'）
+    // 新一轮重置
     if (!state.quizCurrent) {
       state.quizIndex = 0;
       state.quizScore = 0;
@@ -629,9 +779,10 @@
           feedback.innerHTML = '<div class="feedback-wrong">残念...</div>';
           SRS.markWrong(q.kana.hiragana);
         }
-        // 1 秒后自动下一题
+        // 1 秒后自动下一题；答完最后一题进结果页
         setTimeout(function () {
           state.quizIndex++;
+          if (state.quizIndex >= state.quizTotal) state.quizStage = 'result';
           renderQuiz();
         }, 1000);
       };

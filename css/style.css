@@ -1599,6 +1599,111 @@ button {
 
 .practice-quiz-opt.wrong .chart-kana { color: var(--color-error); }
 
+/* ---------- 测验页 · 模式/行选择 ---------- */
+.quiz-setup {
+  padding: 4px 0 8px;
+}
+
+.quiz-setup-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+  opacity: .85;
+}
+
+.quiz-mode-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 18px 20px;
+  margin-bottom: 12px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color .15s, transform .1s;
+  font-family: inherit;
+  color: var(--color-text);
+}
+
+.quiz-mode-card:active { transform: translateY(1px); }
+
+.quiz-mode-card.active,
+.quiz-mode-card:hover {
+  border-color: var(--color-primary);
+}
+
+.qmc-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.qmc-desc {
+  font-size: .86rem;
+  opacity: .65;
+  line-height: 1.4;
+}
+
+.quiz-row-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 16px;
+}
+
+.quiz-row-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  transition: border-color .15s, background .15s;
+}
+
+.quiz-row-chip:hover { border-color: var(--color-primary); }
+
+.quiz-row-chip.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.qrc-count {
+  font-size: .8rem;
+  opacity: .7;
+  font-weight: 500;
+}
+
+.quiz-row-empty {
+  font-size: .9rem;
+  opacity: .6;
+  padding: 14px 0;
+}
+
+.quiz-result-mode {
+  font-size: .95rem;
+  opacity: .7;
+  margin-bottom: 8px;
+}
+
+.quiz-result-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.quiz-result-actions .btn { min-width: 130px; }
+
 /* ---------- 阅读页 · 整篇朗读跟读高亮 ---------- */
 .reading-article { position: relative; }
 .reading-article { overflow: visible; }
