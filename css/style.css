@@ -1419,6 +1419,131 @@ button {
   color: var(--color-accent);
 }
 
+/* ---------- 20b. 单词本 ---------- */
+#reading-wordbook { margin-top: 28px; }
+
+.wordbook-card .wordbook-desc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+#wordbook-view { display: none; margin-top: 8px; }
+
+.wordbook-head { margin-bottom: 18px; }
+
+.wordbook-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+  margin-top: 14px;
+}
+
+.wordbook-subtitle {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.wordbook-count {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 6px;
+}
+
+.wordbook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wordbook-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "main right" "ex ex";
+  gap: 4px 16px;
+  padding: 14px 18px;
+  background: var(--color-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.wordbook-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.wb-main { grid-area: main; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+.wb-word { display: flex; align-items: baseline; gap: 10px; }
+
+.wb-kanji {
+  font-family: var(--font-kana);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.wb-kana {
+  font-family: var(--font-kana);
+  font-size: 17px;
+  color: var(--color-text-secondary);
+}
+
+.wordbook-item.hide-romaji .wb-romaji { display: none; }
+
+.wb-romaji {
+  font-size: 13px;
+  color: var(--color-primary);
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+
+.wb-right {
+  grid-area: right;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+}
+
+.wb-pos {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
+.wb-zh {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: right;
+}
+
+.wb-ex {
+  grid-area: ex;
+  font-family: var(--font-kana);
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  border-top: 1px dashed var(--color-border);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.wb-ex-zh { font-family: var(--font-body); font-size: 12px; opacity: .75; }
+
+@media (max-width: 480px) {
+  .wordbook-item { grid-template-columns: 1fr; grid-template-areas: "main" "right" "ex"; }
+  .wb-right { justify-self: start; }
+  .wb-zh { text-align: left; }
+}
+
 /* ---------- 21. AI 生成折叠区 ---------- */
 #reading-ai-box {
   margin-top: 16px;

@@ -23,7 +23,8 @@
     generating: false,
     articleIdx: null,   // 内置文章下标（有预生成朗读音频）；AI 生成为 null
     articleRes: null,   // 结构化文章资源（带译文/词注），null=无
-    annoMode: 'sent'    // 翻译批注模式：off / sent / word（有译文时默认显示句译）
+    annoMode: 'sent',   // 翻译批注模式：off / sent / word（有译文时默认显示句译）
+    wordbookIdx: null   // 当前打开的单词本下标（null=未打开，显示单词本列表）
   };
 
   // 需求卡片定义（每组末尾都有「自定义」）
@@ -263,9 +264,11 @@
   function render() {
     loadConfig();
     renderLibrary();
+    renderWordbookList();
     renderKeyConfig();
     renderTabs();
     renderArticleArea();
+    renderWordbookView();
     bindGenerate();
   }
 
@@ -297,6 +300,120 @@
         loadArticle(item.text, idx, item.res);
       };
     });
+  }
+
+  // ---------- 单词本列表 ----------
+  function renderWordbookList() {
+    var box = el('reading-wordbook');
+    if (!box) return;
+    var books = window.WORDBOOKS || [];
+    if (!books.length) { box.innerHTML = ''; return; }
+
+    var html = '<div class="reading-library-title">单词本</div>';
+    html += '<div class="reading-library-grid">';
+    books.forEach(function (b, idx) {
+      var count = (b.words || []).length;
+      html +=
+        '<button class="reading-lib-card wordbook-card" data-idx="' + idx + '">' +
+          '<div class="reading-lib-title">' + esc(b.title || '未命名单词本') + '</div>' +
+          '<div class="reading-lib-meta">' +
+            (b.level ? '<span class="reading-lib-level">' + esc(b.level) + '</span>' : '') +
+            '<span class="reading-lib-kana">' + count + ' 词</span>' +
+          '</div>' +
+          (b.desc ? '<div class="wordbook-desc">' + esc(b.desc) + '</div>' : '') +
+        '</button>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+
+    Array.prototype.forEach.call(box.querySelectorAll('.wordbook-card'), function (card) {
+      card.onclick = function () {
+        openWordbook(parseInt(card.getAttribute('data-idx'), 10));
+      };
+    });
+  }
+
+  // 打开一个单词本：隐藏文章/列表，显示单词本详情
+  function openWordbook(idx) {
+    var books = window.WORDBOOKS || [];
+    if (!books[idx]) return;
+    state.wordbookIdx = idx;
+    renderArticleArea();
+    renderWordbookView();
+    var v = el('wordbook-view');
+    if (v) v.scrollIntoView({ block: 'start' });
+  }
+
+  function closeWordbook() {
+    state.wordbookIdx = null;
+    renderArticleArea();
+    renderWordbookView();
+  }
+
+  // 单词本详情：标题 + 词卡列表（假名注音 + 汉字 + 词性 + 中文 + 例句 + 朗读）
+  function renderWordbookView() {
+    var box = el('wordbook-view');
+    if (!box) return;
+    var books = window.WORDBOOKS || [];
+    var book = state.wordbookIdx != null ? books[state.wordbookIdx] : null;
+    if (!book) { box.innerHTML = ''; box.style.display = 'none'; return; }
+
+    box.style.display = 'block';
+    var hide = state.hideRomaji;
+    var html = '<div class="wordbook-head">' +
+      '<button class="btn btn-secondary" id="btn-wordbook-back">返回单词本列表</button>' +
+      '<div class="wordbook-title">' + esc(book.title || '') + '</div>' +
+      (book.desc ? '<div class="wordbook-subtitle">' + esc(book.desc) + '</div>' : '') +
+      '<div class="wordbook-count">共 ' + (book.words || []).length + ' 个词，点击词卡听发音</div>' +
+      '</div>';
+
+    html += '<div class="wordbook-list">';
+    (book.words || []).forEach(function (w, i) {
+      var kana = w.kana || '';
+      var kanji = w.kanji || '';
+      var romaji = kanaRomajiFor(kana);
+      html +=
+        '<div class="wordbook-item reading-char" data-index="' + i + '" data-speak="' + esc(kana) + '">' +
+          '<div class="wb-main">' +
+            '<div class="wb-word">' +
+              (kanji ? '<span class="wb-kanji">' + esc(kanji) + '</span>' : '') +
+              '<span class="wb-kana">' + esc(kana) + '</span>' +
+            '</div>' +
+            '<div class="wb-romaji">' + esc(romaji || '') + '</div>' +
+          '</div>' +
+          '<div class="wb-right">' +
+            (w.pos ? '<span class="wb-pos">' + esc(w.pos) + '</span>' : '') +
+            '<div class="wb-zh">' + esc(w.zh || '') + '</div>' +
+          '</div>' +
+          (w.ex ? '<div class="wb-ex">' + esc(w.ex) + (w.exZh ? '<span class="wb-ex-zh"> ' + esc(w.exZh) + '</span>' : '') + '</div>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+    box.innerHTML = html;
+    box.classList.toggle('hide-romaji', hide);
+
+    el('btn-wordbook-back').onclick = function () { closeWordbook(); };
+    Array.prototype.forEach.call(box.querySelectorAll('.wordbook-item'), function (item) {
+      item.onclick = function () {
+        var kana = item.getAttribute('data-speak');
+        if (kana && window.UI && window.UI.speak) window.UI.speak(kana);
+      };
+    });
+  }
+
+  // 把一段假名拼成罗马音（相邻假名逐个转，忽略长音符等非假名字符）
+  function kanaRomajiFor(kana) {
+    if (!kana) return '';
+    var out = '', i = 0;
+    while (i < kana.length) {
+      var two = kana.substr(i, 2);
+      var twoR = (getKana(two) || EXTRA_KANA[two]) ? kanaRomaji(two) : null;
+      if (twoR) { out += twoR; i += 2; continue; }
+      var oneR = kanaRomaji(kana[i]);
+      out += oneR || kana[i];
+      i++;
+    }
+    return out;
   }
 
   // 生成按钮绑定
@@ -454,6 +571,10 @@
       wrap.style.display = 'none';
       return;
     }
+    // 有文章时收起单词本详情
+    var wb = el('wordbook-view');
+    if (wb) { wb.style.display = 'none'; }
+    state.wordbookIdx = null;
     view.style.display = 'block';
     renderToolbar();
     renderAnnoBar();
