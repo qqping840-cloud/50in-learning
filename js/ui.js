@@ -591,6 +591,37 @@
     return { kana: kana, type: type, options: options, answer: answer };
   }
 
+  // 测验结果页
+  function renderQuizResult(result) {
+    var pct = Math.round(state.quizScore / state.quizTotal * 100);
+    var modeName = (state.quizMode === 'row' && state.quizRow)
+      ? ('行测验：' + (ROW_INFO[state.quizRow] ? ROW_INFO[state.quizRow].name : state.quizRow))
+      : '综合测验';
+    result.innerHTML =
+      '<div class="quiz-result-mode">' + esc(modeName) + '</div>' +
+      '<div class="result-score">' + state.quizScore + ' / ' + state.quizTotal + '</div>' +
+      '<div class="result-pct">正确率 ' + pct + '%</div>' +
+      '<div class="result-judge">' + (pct >= 80 ? '合格！' : '继续加油！') + '</div>' +
+      '<div class="quiz-result-actions">' +
+        '<button class="btn btn-primary" id="btn-quiz-retry">再来一次</button>' +
+        '<button class="btn btn-secondary" id="btn-quiz-back">换模式</button>' +
+      '</div>';
+    el('btn-quiz-retry').onclick = function () {
+      state.quizIndex = 0;
+      state.quizScore = 0;
+      state.quizCurrent = null;
+      state.quizStage = 'quiz';
+      renderQuiz();
+    };
+    el('btn-quiz-back').onclick = function () {
+      state.quizIndex = 0;
+      state.quizScore = 0;
+      state.quizCurrent = null;
+      state.quizStage = 'setup';
+      renderQuiz();
+    };
+  }
+
   // 测验设置界面：综合测验 / 行测验（选一行）
   function renderQuizSetup(result) {
     var rows = window.ROWS || [];
@@ -676,52 +707,41 @@
     if (state.quizStage === 'setup') {
       header.innerHTML = '';
       question.innerHTML = '';
-      question.style.display = 'none';
       optionsBox.innerHTML = '';
       feedback.innerHTML = '';
+      // 题目区整块隐藏（否则 padding 会撑出空壳）
+      question.style.display = 'none';
+      header.style.display = 'none';
+      optionsBox.style.display = 'none';
+      feedback.style.display = 'none';
+      result.style.display = '';
       renderQuizSetup(result);
       return;
     }
-    question.style.display = '';
 
     // 阶段 3：全部答完，显示结果
     if (state.quizStage === 'result') {
       header.innerHTML = '';
       question.innerHTML = '';
-      question.style.display = 'none';
       optionsBox.innerHTML = '';
       feedback.innerHTML = '';
-      var pct = Math.round(state.quizScore / state.quizTotal * 100);
-      var modeName = (state.quizMode === 'row' && state.quizRow)
-        ? ('行测验：' + (ROW_INFO[state.quizRow] ? ROW_INFO[state.quizRow].name : state.quizRow))
-        : '综合测验';
-      result.innerHTML =
-        '<div class="quiz-result-mode">' + esc(modeName) + '</div>' +
-        '<div class="result-score">' + state.quizScore + ' / ' + state.quizTotal + '</div>' +
-        '<div class="result-pct">正确率 ' + pct + '%</div>' +
-        '<div class="result-judge">' + (pct >= 80 ? '合格！' : '继续加油！') + '</div>' +
-        '<div class="quiz-result-actions">' +
-          '<button class="btn btn-primary" id="btn-quiz-retry">再来一次</button>' +
-          '<button class="btn btn-secondary" id="btn-quiz-back">换模式</button>' +
-        '</div>';
-      el('btn-quiz-retry').onclick = function () {
-        state.quizIndex = 0;
-        state.quizScore = 0;
-        state.quizCurrent = null;
-        state.quizStage = 'quiz';
-        renderQuiz();
-      };
-      el('btn-quiz-back').onclick = function () {
-        state.quizIndex = 0;
-        state.quizScore = 0;
-        state.quizCurrent = null;
-        state.quizStage = 'setup';
-        renderQuiz();
-      };
+      question.style.display = 'none';
+      header.style.display = 'none';
+      optionsBox.style.display = 'none';
+      feedback.style.display = 'none';
+      result.style.display = '';
+      renderQuizResult(result);
       return;
     }
 
-    // 阶段 2：答题（state.quizStage === 'quiz'）
+    // 阶段 2：答题 —— 恢复题目区，清空结果区
+    question.style.display = '';
+    header.style.display = '';
+    optionsBox.style.display = '';
+    feedback.style.display = 'none';   // 反馈条默认不占位，答完才显示
+    result.innerHTML = '';
+    result.style.display = 'none';
+
     // 新一轮重置
     if (!state.quizCurrent) {
       state.quizIndex = 0;
@@ -731,7 +751,6 @@
     state.quizLocked = false;
     var q = state.quizCurrent;
 
-    result.innerHTML = '';
     feedback.innerHTML = '';
 
     // 题头：第X题/共Y题 + 得分
@@ -775,11 +794,13 @@
         if (correct) {
           btn.classList.add('correct');
           feedback.innerHTML = '<div class="feedback-right">正解！</div>';
+          feedback.style.display = 'block';
           state.quizScore++;
           SRS.markCorrect(q.kana.hiragana);
         } else {
           btn.classList.add('wrong');
           feedback.innerHTML = '<div class="feedback-wrong">残念...</div>';
+          feedback.style.display = 'block';
           SRS.markWrong(q.kana.hiragana);
         }
         // 1 秒后自动下一题；答完最后一题进结果页
