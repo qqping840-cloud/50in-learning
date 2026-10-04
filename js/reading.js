@@ -24,8 +24,12 @@
     articleIdx: null,   // 内置文章下标（有预生成朗读音频）；AI 生成为 null
     articleRes: null,   // 结构化文章资源（带译文/词注），null=无
     annoMode: 'sent',   // 翻译批注模式：off / sent / word（有译文时默认显示句译）
-    wordbookIdx: null   // 当前打开的单词本下标（null=未打开，显示单词本列表）
+    wordbookIdx: null,  // 当前打开的单词本下标（null=未打开，显示单词本列表）
+    wbHideRomaji: false, // 单词本是否屏蔽罗马音
+    exManifest: null,   // 例句音频清单 { 例句原文: n }
+    exManifestLoading: false
   };
+  var wbPlayer = null;  // 单词本例句朗读播放器（与文章 player 互不干扰）
 
   // 需求卡片定义（每组末尾都有「自定义」）
   var TABS = [
@@ -337,6 +341,11 @@
   function openWordbook(idx) {
     var books = window.WORDBOOKS || [];
     if (!books[idx]) return;
+    stopReadAloud();
+    // 收起可能已打开的文章，避免 renderArticleArea 把单词本又关掉
+    state.article = null;
+    state.articleRes = null;
+    state.typingActive = false;
     state.wordbookIdx = idx;
     renderArticleArea();
     renderWordbookView();
@@ -345,60 +354,225 @@
   }
 
   function closeWordbook() {
+    stopWordbookRead();
     state.wordbookIdx = null;
     renderArticleArea();
     renderWordbookView();
   }
 
-  // 单词本详情：标题 + 词卡列表（假名注音 + 汉字 + 词性 + 中文 + 例句 + 朗读）
+  // 单词本详情：标题 + 词卡列表
+  // 每个词卡：假名注音 + 汉字 + 词性 + 中文 + 结构化的例句（可朗读/跟读高亮/悬停词义）
   function renderWordbookView() {
     var box = el('wordbook-view');
     if (!box) return;
     var books = window.WORDBOOKS || [];
     var book = state.wordbookIdx != null ? books[state.wordbookIdx] : null;
-    if (!book) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    if (!book) { box.innerHTML = ''; box.style.display = 'none'; stopWordbookRead(); return; }
+
+    tryLoadExManifest();
 
     box.style.display = 'block';
-    var hide = state.hideRomaji;
+    var hide = state.wbHideRomaji;
     var html = '<div class="wordbook-head">' +
       '<button class="btn btn-secondary" id="btn-wordbook-back">返回单词本列表</button>' +
+      '<button class="btn btn-secondary" id="btn-wordbook-hide">' + (hide ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<div class="wordbook-title">' + esc(book.title || '') + '</div>' +
       (book.desc ? '<div class="wordbook-subtitle">' + esc(book.desc) + '</div>' : '') +
-      '<div class="wordbook-count">共 ' + (book.words || []).length + ' 个词，点击词卡听发音</div>' +
+      '<div class="wordbook-count">共 ' + (book.words || []).length + ' 个词，点词听发音；例句可朗读、悬停看词义</div>' +
       '</div>';
 
-    html += '<div class="wordbook-list">';
+    html += '<div class="wordbook-list' + (hide ? ' hide-romaji' : '') + '" id="wordbook-list">';
     (book.words || []).forEach(function (w, i) {
       var kana = w.kana || '';
       var kanji = w.kanji || '';
       var romaji = kanaRomajiFor(kana);
+      var ex = w.ex;
       html +=
-        '<div class="wordbook-item reading-char" data-index="' + i + '" data-speak="' + esc(kana) + '">' +
-          '<div class="wb-main">' +
-            '<div class="wb-word">' +
-              (kanji ? '<span class="wb-kanji">' + esc(kanji) + '</span>' : '') +
-              '<span class="wb-kana">' + esc(kana) + '</span>' +
+        '<div class="wordbook-item" data-index="' + i + '">' +
+          '<div class="wb-row" data-speak="' + esc(kana) + '">' +
+            '<div class="wb-main">' +
+              '<div class="wb-word">' +
+                (kanji ? '<span class="wb-kanji">' + esc(kanji) + '</span>' : '') +
+                '<span class="wb-kana">' + esc(kana) + '</span>' +
+              '</div>' +
+              '<div class="wb-romaji">' + esc(romaji || '') + '</div>' +
             '</div>' +
-            '<div class="wb-romaji">' + esc(romaji || '') + '</div>' +
+            '<div class="wb-right">' +
+              (w.pos ? '<span class="wb-pos">' + esc(w.pos) + '</span>' : '') +
+              '<div class="wb-zh">' + esc(w.zh || '') + '</div>' +
+            '</div>' +
           '</div>' +
-          '<div class="wb-right">' +
-            (w.pos ? '<span class="wb-pos">' + esc(w.pos) + '</span>' : '') +
-            '<div class="wb-zh">' + esc(w.zh || '') + '</div>' +
-          '</div>' +
-          (w.ex ? '<div class="wb-ex">' + esc(w.ex) + (w.exZh ? '<span class="wb-ex-zh"> ' + esc(w.exZh) + '</span>' : '') + '</div>' : '') +
+          (ex ? '<div class="wb-ex-wrap">' +
+            '<div class="wb-ex-article reading-article" data-ex-index="' + i + '">' +
+              '<span class="wb-ex-loading">正在加载例句…</span>' +
+            '</div>' +
+            '<button class="btn btn-secondary wb-ex-read" data-ex-index="' + i + '">朗读例句</button>' +
+          '</div>' : '') +
         '</div>';
     });
     html += '</div>';
     box.innerHTML = html;
-    box.classList.toggle('hide-romaji', hide);
 
     el('btn-wordbook-back').onclick = function () { closeWordbook(); };
-    Array.prototype.forEach.call(box.querySelectorAll('.wordbook-item'), function (item) {
+    el('btn-wordbook-hide').onclick = function () {
+      state.wbHideRomaji = !state.wbHideRomaji;
+      renderWordbookView();
+    };
+    // 点词行听单词发音
+    Array.prototype.forEach.call(box.querySelectorAll('.wb-row'), function (item) {
       item.onclick = function () {
         var kana = item.getAttribute('data-speak');
         if (kana && window.UI && window.UI.speak) window.UI.speak(kana);
       };
     });
+    // 渲染每个例句（注音 + 批注）
+    Array.prototype.forEach.call(box.querySelectorAll('.wb-ex-article'), function (c) {
+      var i = parseInt(c.getAttribute('data-ex-index'), 10);
+      renderWordbookExample(c, i);
+    });
+    // 例句朗读
+    Array.prototype.forEach.call(box.querySelectorAll('.wb-ex-read'), function (b) {
+      var i = parseInt(b.getAttribute('data-ex-index'), 10);
+      b.onclick = function () { toggleWordbookRead(i, b); };
+    });
+  }
+
+  // 渲染单个例句：kuroshiro 注音 -> 批注包裹（含悬停词义）
+  function renderWordbookExample(container, wordIdx) {
+    var book = (window.WORDBOOKS || [])[state.wordbookIdx];
+    var w = book && book.words[wordIdx];
+    var ex = w && w.ex;
+    if (!ex || !ex.ja) { container.innerHTML = ''; return; }
+    var mode = state.annoMode || 'sent';
+    initKuroshiro().then(function () {
+      return annotateArticle(ex.ja);
+    }).then(function (html) {
+      // 容器可能已被重渲染替换，检查是否仍在文档里
+      if (!document.body.contains(container)) return;
+      if (!html) {
+        // 降级：纯文本
+        container.textContent = ex.ja;
+        return;
+      }
+      wrapAnnotation(container, html, [ex], mode, state.wbHideRomaji, container);
+    });
+  }
+
+  // ---------- 单词本例句朗读 · 跟读高亮 ----------
+  // 音频：assets/audio/ex/ex-<n>.mp3 + .json（词级时间戳）
+  // 清单：assets/audio/ex/manifest.json = { "<例句原文>": n }
+  function tryLoadExManifest() {
+    if (state.exManifest || state.exManifestLoading) return;
+    state.exManifestLoading = true;
+    fetch('assets/audio/ex/manifest.json').then(function (r) {
+      if (!r.ok) throw new Error('no-manifest');
+      return r.json();
+    }).then(function (m) { state.exManifest = m; }).catch(function () { state.exManifest = {}; });
+  }
+
+  function stopWordbookRead() {
+    var btn = document.querySelector('.wb-ex-read.playing');
+    if (btn) { btn.classList.remove('playing'); btn.textContent = '朗读例句'; }
+    if (!wbPlayer) return;
+    if (wbPlayer.raf) cancelAnimationFrame(wbPlayer.raf);
+    try { wbPlayer.audio.pause(); } catch (e) {}
+    if (wbPlayer.hl && wbPlayer.hl.parentNode) wbPlayer.hl.parentNode.removeChild(wbPlayer.hl);
+    wbPlayer = null;
+  }
+
+  function toggleWordbookRead(wordIdx, btn) {
+    // 已在播放同一条 -> 暂停/继续
+    if (wbPlayer && wbPlayer.wordIdx === wordIdx) {
+      if (wbPlayer.audio.paused) { wbPlayer.audio.play(); btn.textContent = '暂停'; }
+      else { wbPlayer.audio.pause(); btn.textContent = '继续'; }
+      return;
+    }
+    stopWordbookRead();
+    var book = (window.WORDBOOKS || [])[state.wordbookIdx];
+    var w = book && book.words[wordIdx];
+    var ex = w && w.ex;
+    if (!ex || !ex.ja) return;
+    var n = state.exManifest ? state.exManifest[ex.ja] : undefined;
+    if (n == null) { btn.textContent = '无朗读音频'; return; }
+    var container = document.querySelector('.wb-ex-article[data-ex-index="' + wordIdx + '"]');
+    if (!container) return;
+
+    fetch('assets/audio/ex/ex-' + n + '.json').then(function (r) {
+      if (!r.ok) throw new Error('no-timing');
+      return r.json();
+    }).then(function (data) {
+      startWordbookTiming(container, n, data.words || [], wordIdx, btn);
+    }).catch(function () { btn.textContent = '无朗读音频'; });
+  }
+
+  function startWordbookTiming(container, n, words, wordIdx, btn) {
+    var spineData = buildSpine(container);
+    var spine = spineData.spine, items = spineData.items;
+    var ranges = [];
+    var cursor = 0;
+    words.forEach(function (w) {
+      var t = w.t || '';
+      if (!t) return;
+      var pos = spine.indexOf(t, cursor);
+      if (pos < 0) pos = spine.indexOf(t);
+      if (pos < 0) return;
+      ranges.push({ s: pos, e: pos + t.length, start: w.start, dur: w.dur });
+      cursor = pos + t.length;
+    });
+    if (!ranges.length) { btn.textContent = '无朗读音频'; return; }
+
+    var hl = document.createElement('div');
+    hl.className = 'reading-highlight';
+    container.parentNode.appendChild(hl);
+    var audio = new Audio('assets/audio/ex/ex-' + n + '.mp3');
+    wbPlayer = { audio: audio, ranges: ranges, items: items, hl: hl, container: container, raf: 0, wordIdx: wordIdx };
+
+    btn.classList.add('playing');
+    btn.textContent = '暂停';
+    audio.onended = stopWordbookRead;
+    audio.onplay = function () { btn.textContent = '暂停'; };
+    audio.onpause = function () { if (!audio.ended) btn.textContent = '继续'; };
+
+    function placeHighlight(r) {
+      var rect = null;
+      items.forEach(function (it) {
+        if (it.start < r.e && it.start + it.len > r.s) {
+          var b = it.el.getBoundingClientRect();
+          if (!rect) rect = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+          else {
+            if (b.left < rect.left) rect.left = b.left;
+            if (b.top < rect.top) rect.top = b.top;
+            if (b.right > rect.right) rect.right = b.right;
+            if (b.bottom > rect.bottom) rect.bottom = b.bottom;
+          }
+        }
+      });
+      if (!rect) return;
+      var cb = container.getBoundingClientRect();
+      var pb = container.parentNode.getBoundingClientRect();
+      var padX = 5, padY = 4;
+      hl.style.left = (rect.left - cb.left - padX) + 'px';
+      hl.style.top = (rect.top - pb.top - padY) + 'px';
+      hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
+      hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
+      hl.classList.add('on');
+    }
+
+    function frame() {
+      if (!wbPlayer || wbPlayer.audio !== audio) return;
+      var tms = audio.currentTime * 1000;
+      var cur = null;
+      for (var i = 0; i < ranges.length; i++) {
+        if (ranges[i].start <= tms) cur = ranges[i];
+        else break;
+      }
+      if (cur) placeHighlight(cur);
+      wbPlayer.raf = requestAnimationFrame(frame);
+    }
+
+    audio.play().then(function () {
+      wbPlayer.raf = requestAnimationFrame(frame);
+    }).catch(function () { stopWordbookRead(); });
   }
 
   // 把一段假名拼成罗马音（相邻假名逐个转，忽略长音符等非假名字符）
@@ -643,23 +817,29 @@
     return mode === 'sent' || mode === 'word';
   }
 
-  // 批注渲染：从 state.annotated 整体重建容器。
-  // 字符级标签（sentOf / wordOf）+ 区间边界开闭包裹；一个词 = 一个整体 span。
-  // 每次整体重建，绝不叠加（旧的逐字符打标会套娃 → UI 重叠）。
+  // 批注渲染（文章用，读全局 state）。
   function applyAnnotation() {
     var box = el('reading-article');
     var container = box ? box.querySelector('.reading-article') : null;
     if (!container) return;
-    var res = state.articleRes;
-    var mode = state.annoMode;
+    wrapAnnotation(container, state.annotated || '', state.articleRes ? state.articleRes.sents : null,
+      state.annoMode, state.hideRomaji, box);
+  }
 
-    container.className = 'reading-article' + (state.hideRomaji ? ' hide-romaji' : '');
-
-    if (!res || mode === 'off') { container.innerHTML = state.annotated || ''; return; }
+  // 批注渲染核心（可复用于文章 / 单词本例句）。
+  // 从 annotatedHtml 整体重建 container：
+  //   字符级标签（sentOf/wordOf）+ 区间边界开闭包裹；一个词 = 一个整体 span。
+  //   每次整体重建，绝不叠加（旧的逐字符打标会套娃 → UI 重叠）。
+  //   sents: [{ ja, zh, words:[{t,zh}] }]（null/off 时只还原注音）
+  //   mode: 'off' | 'sent' | 'word'
+  //   clickHost: 绑点读的容器（默认 container）
+  function wrapAnnotation(container, annotatedHtml, sents, mode, hideRomaji, clickHost) {
+    container.className = container.className.replace(/\s*hide-romaji/g, '') + (hideRomaji ? ' hide-romaji' : '');
+    if (!sents || mode === 'off') { container.innerHTML = annotatedHtml || ''; bindCharClick(clickHost || container); return; }
 
     // --- 1. 顶层节点序列，记录每个字节点的全局字符偏移 ---
     var tmp = document.createElement('div');
-    tmp.innerHTML = state.annotated || '';
+    tmp.innerHTML = annotatedHtml || '';
     var items = [];
     var g = 0;
     Array.prototype.forEach.call(tmp.childNodes, function (nd) {
@@ -678,11 +858,10 @@
     var nChars = g;
 
     // --- 2. 句区间 + 词区间（在 spine 坐标系） ---
-    // 严格顺序推进：每句从上一句结束处开始找；找不到就记为 null（该句不批注）
     var sentRanges = [];   // { from, to, zh, words:[{from,to,zh}] }
     var p = 0;
     var missList = [];
-    (res.sents || []).forEach(function (sent, idx) {
+    sents.forEach(function (sent, idx) {
       var needle = (sent.ja || '').replace(/\s/g, '').replace(/[、。！？，．]/g, '');
       if (!needle) { sentRanges.push(null); missList.push(idx + ':empty'); return; }
       var at = spine.indexOf(needle, p);
@@ -701,7 +880,6 @@
       });
       sentRanges.push({ from: at, to: end, zh: sent.zh || '', words: ws });
     });
-    // 诊断：哪些句没匹配上（仅开发期可见）
     if (missList.length && window.console && console.warn) {
       console.warn('[annotation] 未匹配的句子:', missList.join(' | '));
     }
@@ -750,9 +928,7 @@
       frag.appendChild(curSent);
     }
 
-    // pendingCloseSent: 字符已到句末但可能还有尾随标点，延迟到下一个「字」或流末尾才真正收句
     var pendingSentClose = false;
-
     function flushPending() {
       if (pendingSentClose) { pendingSentClose = false; closeSent(); }
     }
@@ -764,7 +940,6 @@
         else frag.appendChild(it.el);
         return;
       }
-      // 新字符到来前，先把上一句的「待关闭」落实
       flushPending();
 
       var si = sentOf[it.gStart];
@@ -789,7 +964,6 @@
       }
       (curWord || host).appendChild(it.el);
 
-      // 字符到达句末 -> 标记待关闭（标点会在此之前归入本句）
       var rg3 = sentRanges[si];
       if (rg3 && it.gStart + it.len >= rg3.to) pendingSentClose = true;
     });
@@ -798,7 +972,7 @@
 
     container.innerHTML = '';
     container.appendChild(frag);
-    bindCharClick(box);
+    bindCharClick(clickHost || container);
   }
   // 阅读模式：逐假名 furigana 展示，可点读
   function renderArticle() {
@@ -1242,6 +1416,7 @@
   // ---------- 导出 ----------
   // 加载一篇文章（供精选文章/AI生成/测试复用）
   function loadArticle(text, idx, res) {
+    stopWordbookRead();
     state.article = text;
     state.articleIdx = (typeof idx === 'number') ? idx : null;
     state.articleRes = res || null;

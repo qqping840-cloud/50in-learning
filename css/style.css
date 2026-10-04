@@ -1458,15 +1458,12 @@ button {
 }
 
 .wordbook-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "main right" "ex ex";
-  gap: 4px 16px;
+  display: flex;
+  flex-direction: column;
   padding: 14px 18px;
   background: var(--color-card);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  cursor: pointer;
   transition: border-color .15s, box-shadow .15s;
 }
 
@@ -1475,7 +1472,9 @@ button {
   box-shadow: var(--shadow-md);
 }
 
-.wb-main { grid-area: main; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.wb-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; flex-wrap: wrap; }
+
+.wb-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 
 .wb-word { display: flex; align-items: baseline; gap: 10px; }
 
@@ -1492,8 +1491,6 @@ button {
   color: var(--color-text-secondary);
 }
 
-.wordbook-item.hide-romaji .wb-romaji { display: none; }
-
 .wb-romaji {
   font-size: 13px;
   color: var(--color-primary);
@@ -1502,11 +1499,9 @@ button {
 }
 
 .wb-right {
-  grid-area: right;
   display: flex;
   align-items: center;
   gap: 10px;
-  justify-self: end;
 }
 
 .wb-pos {
@@ -1526,21 +1521,52 @@ button {
   text-align: right;
 }
 
-.wb-ex {
-  grid-area: ex;
-  font-family: var(--font-kana);
-  font-size: 14px;
-  color: var(--color-text-secondary);
+.wb-ex-wrap {
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px dashed var(--color-border);
-  padding-top: 8px;
-  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 
-.wb-ex-zh { font-family: var(--font-body); font-size: 12px; opacity: .75; }
+.wb-ex-article.reading-article {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: 17px;
+  line-height: 2.1;
+  letter-spacing: 0;
+  width: 100%;
+}
+
+/* 例句里的逐字块更紧凑，避免整句被撑得松散 */
+.wb-ex-article .reading-char { padding: 0; }
+.wb-ex-article .reading-char ruby rt { font-size: 10px; letter-spacing: 0; }
+.wb-ex-article .reading-char[data-reading] ruby rt { font-size: 10px; }
+
+/* 例句译文更轻 */
+.wb-ex-article .anno-zh-sent { font-size: 13px; }
+
+.wb-ex-loading { font-size: 13px; opacity: .5; }
+
+.wb-ex-read {
+  align-self: flex-start;
+  padding: 4px 14px;
+  font-size: 13px;
+}
+
+.wb-ex-read.playing { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+/* 单词本整体屏蔽罗马音 */
+.wordbook-list.hide-romaji .wb-romaji { display: none; }
+.wordbook-list.hide-romaji .reading-article.hide-romaji ruby rt { display: none; }
+.wordbook-list.hide-romaji .reading-article ruby rt { display: none; }
 
 @media (max-width: 480px) {
-  .wordbook-item { grid-template-columns: 1fr; grid-template-areas: "main" "right" "ex"; }
-  .wb-right { justify-self: start; }
+  .wb-row { flex-direction: column; align-items: flex-start; gap: 8px; }
   .wb-zh { text-align: left; }
 }
 

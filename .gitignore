@@ -6,6 +6,7 @@ assets/tts/
 
 # 预生成的单词本发音（用 tools/gen_word_tts.py 重新生成）
 assets/audio/words/
+assets/audio/ex/
 
 # 系统文件
 node_modules/
