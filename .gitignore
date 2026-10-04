@@ -4,6 +4,9 @@ config.json
 # 预生成的朗读音频 + 时间戳（用 tools/gen_tts.py 重新生成）
 assets/tts/
 
+# 预生成的单词本发音（用 tools/gen_word_tts.py 重新生成）
+assets/audio/words/
+
 # 系统文件
 node_modules/
 .DS_Store

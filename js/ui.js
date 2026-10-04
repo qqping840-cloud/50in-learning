@@ -132,23 +132,34 @@
     speakTimer = setTimeout(function () { window.speechSynthesis.speak(u); }, 50);
   }
 
+  // 本地音频查找顺序：单词本词音频 -> 单假名音频 -> 浏览器 TTS 兜底
   function speak(text) {
     if (speakTimer) clearTimeout(speakTimer);
-    // 1. 优先播放本地音频（assets/audio/<假名>.mp3），标准日语发音且秒出
-    //    只有单个假名/拗音有 mp3；单词读音（如 やま）会 404 -> 异步回退 TTS
     if (curAudio) { curAudio.pause(); curAudio = null; }
-    var a = new Audio('assets/audio/' + encodeURIComponent(text) + '.mp3');
-    curAudio = a;
-    var fellBack = false;
-    var fallback = function () {
-      if (fellBack) return;               // error 事件与 play() 拒绝可能都触发，防重复
-      fellBack = true;
-      if (curAudio === a) curAudio = null;
-      ttsSpeak(text);
+    var enc = encodeURIComponent(text);
+    var candidates = [];
+    // 1. 单词读音（离线生成，assets/audio/words/<假名>.mp3）
+    candidates.push('assets/audio/words/' + enc + '.mp3');
+    // 2. 单假名/拗音读音（assets/audio/<假名>.mp3）
+    candidates.push('assets/audio/' + enc + '.mp3');
+
+    var i = 0;
+    var tryNext = function () {
+      if (i >= candidates.length) { ttsSpeak(text); return; }
+      var a = new Audio(candidates[i++]);
+      curAudio = a;
+      var advanced = false;
+      var next = function () {
+        if (advanced) return;            // error 与 play() 拒绝可能都触发，防重复
+        advanced = true;
+        if (curAudio === a) curAudio = null;
+        tryNext();
+      };
+      a.onerror = next;
+      var p = a.play();
+      if (p && typeof p.catch === 'function') p.catch(next);
     };
-    a.onerror = fallback;
-    var p = a.play();
-    if (p && typeof p.catch === 'function') p.catch(fallback);
+    tryNext();
   }
 
   // ---------- 主题（夜间模式） ----------
