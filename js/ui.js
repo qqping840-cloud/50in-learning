@@ -676,16 +676,19 @@
     if (state.quizStage === 'setup') {
       header.innerHTML = '';
       question.innerHTML = '';
+      question.style.display = 'none';
       optionsBox.innerHTML = '';
       feedback.innerHTML = '';
       renderQuizSetup(result);
       return;
     }
+    question.style.display = '';
 
     // 阶段 3：全部答完，显示结果
     if (state.quizStage === 'result') {
       header.innerHTML = '';
       question.innerHTML = '';
+      question.style.display = 'none';
       optionsBox.innerHTML = '';
       feedback.innerHTML = '';
       var pct = Math.round(state.quizScore / state.quizTotal * 100);
