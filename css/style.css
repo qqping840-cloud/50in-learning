@@ -356,6 +356,8 @@ button {
   gap: 12px;
 }
 
+#learn-controls { flex-wrap: wrap; }   /* 「全学会了」独占一行 */
+
 #learn-controls .btn,
 #practice-controls .btn {
   flex: 1;
@@ -363,6 +365,16 @@ button {
   font-size: 17px;
   min-height: 56px;
 }
+
+/* 全学会了：整行按钮，独占一行 */
+#learn-controls .btn-learn-all {
+  flex: 0 0 100%;
+  min-height: 48px;
+  padding: 12px;
+  font-size: 15px;
+  gap: 6px;
+}
+.learn-all-hint { font-size: 13px; opacity: .7; }
 
 /* 学习页头部 / 测验页头部 */
 #learn-header,
@@ -373,6 +385,17 @@ button {
   font-weight: 700;
   color: var(--color-text-secondary);
 }
+
+/* 测验答题中的「返回」按钮（回到选模式） */
+#quiz-header .quiz-back-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  min-height: 0;
+  font-size: 14px;
+  gap: 2px;
+  box-shadow: 0 2px 0 var(--color-border);
+}
+#quiz-header .quiz-back-btn svg { width: 16px; height: 16px; }
 
 /* ---------- 10. 首页布局：16:9 桌面横向网格 ---------- */
 #page-home.active {

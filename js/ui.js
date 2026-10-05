@@ -353,6 +353,9 @@
       '<button class="btn btn-secondary" id="btn-learn-next" aria-label="下一个">' +
         '<span>下一个</span>' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>' +
+      '</button>' +
+      '<button class="btn btn-secondary btn-learn-all" id="btn-learn-know-all">' +
+        '<span>全学会了</span><span class="learn-all-hint">（本行 ' + kanaList.length + ' 个）</span>' +
       '</button>';
 
     // 事件绑定
@@ -382,6 +385,26 @@
           el('btn-learn-know').innerText = '学会了';
         }
       }, 600);
+    };
+
+    // 全学会了：把本行所有假名一次性标记为已学，然后跳到下一行
+    el('btn-learn-know-all').onclick = function () {
+      kanaList.forEach(function (k) {
+        SRS.startLearning(k.hiragana);
+        if (window.SRS.recordStudy) SRS.recordStudy(k.hiragana);
+      });
+      var rows = window.ROWS || [];
+      var idx = rows.indexOf(state.learnRow);
+      if (idx >= 0 && idx < rows.length - 1) {
+        state.learnRow = rows[idx + 1];
+        state.learnIndex = 0;
+        renderLearn();
+      } else {
+        // 已是最后一行：停留并给反馈
+        renderLearn();
+        var b = el('btn-learn-know-all');
+        if (b) { b.classList.add('btn-success'); b.textContent = '全部学完了 ✓'; }
+      }
     };
   }
 
@@ -764,10 +787,23 @@
 
     feedback.innerHTML = '';
 
-    // 题头：第X题/共Y题 + 得分
+    // 题头：返回 + 第X题/共Y题 + 得分
     header.innerHTML =
+      '<button class="btn btn-secondary quiz-back-btn" id="btn-quiz-back" aria-label="返回选模式">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>' +
+        '<span>返回</span>' +
+      '</button>' +
       '<div class="quiz-count">第 ' + (state.quizIndex + 1) + ' 题 / 共 ' + state.quizTotal + ' 题</div>' +
       '<div class="quiz-score">得分：' + state.quizScore + '</div>';
+
+    // 返回：放弃本轮，回到选模式界面
+    el('btn-quiz-back').onclick = function () {
+      state.quizIndex = 0;
+      state.quizScore = 0;
+      state.quizCurrent = null;
+      state.quizStage = 'setup';
+      renderQuiz();
+    };
 
     // 题干
     if (q.type === 0) {
