@@ -189,9 +189,19 @@
     nodes.forEach(fn);
   }
 
-  // 取文章注音结果。优先读缓存；无缓存则调 kuroshiro 转换并写入缓存。
+  // 取文章注音结果。
+  // 顺序：离线预生成表（file:// 也能用）-> localStorage 缓存 -> kuroshiro 实时转换
   // 返回 Promise：resolve 注音 HTML；失败降级 resolve null
   function annotateArticle(text) {
+    // 0. 离线预生成（内置文章/单词本例句，无需词典，双击 html 也能用）
+    if (window.OFFLINE && window.OFFLINE.furigana && window.OFFLINE.furigana[text]) {
+      return Promise.resolve(window.OFFLINE.furigana[text]);
+    }
+    return annotateWithKuroshiro(text);
+  }
+
+  // 纯 kuroshiro 注音（不查离线表）—— 预生成脚本与 AI 文章走这条
+  function annotateWithKuroshiro(text) {
     if (!kuroshiroReady || !globalKuroshiro) return Promise.resolve(null);
     var key = cacheKey(text);
     // 1. 先查 localStorage 缓存
@@ -438,16 +448,19 @@
     });
   }
 
-  // 渲染单个例句：kuroshiro 注音 -> 批注包裹（含悬停词义）
+  // 渲染单个例句：注音 -> 批注包裹（含悬停词义）
+  // 有离线预生成时无需词典（file:// 双击 html 也能用）
   function renderWordbookExample(container, wordIdx) {
     var book = (window.WORDBOOKS || [])[state.wordbookIdx];
     var w = book && book.words[wordIdx];
     var ex = w && w.ex;
     if (!ex || !ex.ja) { container.innerHTML = ''; return; }
     var mode = state.annoMode || 'sent';
-    initKuroshiro().then(function () {
-      return annotateArticle(ex.ja);
-    }).then(function (html) {
+    var hasOffline = !!(window.OFFLINE && window.OFFLINE.furigana && window.OFFLINE.furigana[ex.ja]);
+    var getHtml = hasOffline
+      ? Promise.resolve(window.OFFLINE.furigana[ex.ja])
+      : initKuroshiro().then(function () { return annotateArticle(ex.ja); });
+    getHtml.then(function (html) {
       // 容器可能已被重渲染替换，检查是否仍在文档里
       if (!document.body.contains(container)) return;
       if (!html) {
@@ -464,6 +477,8 @@
   // 清单：assets/audio/ex/manifest.json = { "<例句原文>": n }
   function tryLoadExManifest() {
     if (state.exManifest || state.exManifestLoading) return;
+    // 离线预生成优先（file:// 不能 fetch）
+    if (window.OFFLINE && window.OFFLINE.exManifest) { state.exManifest = window.OFFLINE.exManifest; return; }
     state.exManifestLoading = true;
     fetch('assets/audio/ex/manifest.json').then(function (r) {
       if (!r.ok) throw new Error('no-manifest');
@@ -497,6 +512,12 @@
     if (n == null) { btn.textContent = '无朗读音频'; return; }
     var container = document.querySelector('.wb-ex-article[data-ex-index="' + wordIdx + '"]');
     if (!container) return;
+
+    // 离线预生成时间戳优先（file:// 不能 fetch）
+    if (window.OFFLINE && window.OFFLINE.exTiming && window.OFFLINE.exTiming[n]) {
+      startWordbookTiming(container, n, (window.OFFLINE.exTiming[n].words) || [], wordIdx, btn);
+      return;
+    }
 
     fetch('assets/audio/ex/ex-' + n + '.json').then(function (r) {
       if (!r.ok) throw new Error('no-timing');
@@ -608,6 +629,16 @@
   function renderKeyConfig() {
     var box = el('reading-key-config');
     if (!box) return;
+    // file:// 下无法访问本地服务，AI 生成不可用
+    if (location.protocol === 'file:') {
+      box.innerHTML =
+        '<div class="reading-key-box">' +
+          '<span class="reading-key-label">AI 生成需要启动本地服务</span>' +
+          '<div class="reading-key-hint">双击文件夹里的 <b>start.bat</b> 启动服务后，此功能才可用。' +
+          '（其余阅读 / 单词本功能不需要服务，直接双击 index.html 即可）</div>' +
+        '</div>';
+      return;
+    }
     var hasKey = state.config.hasKey;
     box.innerHTML =
       '<div class="reading-key-box">' +
@@ -684,6 +715,10 @@
   // ---------- 生成文章 ----------
   function generateArticle() {
     if (state.generating) return;
+    if (location.protocol === 'file:') {
+      alert('AI 生成需要先启动本地服务：双击文件夹里的 start.bat，再从打开的网页里使用。');
+      return;
+    }
     // 校验 key
     if (!state.config.hasKey) {
       alert('请先配置 DeepSeek API Key');
@@ -980,10 +1015,13 @@
     var box = el('reading-article');
     if (!box) return;
     stopReadAloud();
+    // 有离线预生成注音时，不依赖词典（file:// 双击 html 也能用）
+    var hasOffline = !!(window.OFFLINE && window.OFFLINE.furigana && window.OFFLINE.furigana[state.article]);
     var pending = !state.annotated || state.annotatedText !== state.article;
     if (pending) {
       box.innerHTML = '<div class="reading-loading">正在加载注音...</div>';
     }
+    if (hasOffline) { renderAnnotated(); return; }
     initKuroshiro().then(function (ok) {
       if (ok) {
         // kuroshiro 可用：汉字有注音
@@ -1140,6 +1178,12 @@
       return;
     }
     var idx = state.articleIdx;
+
+    // 离线预生成时间戳优先（file:// 不能 fetch）
+    if (window.OFFLINE && window.OFFLINE.tts && window.OFFLINE.tts[idx]) {
+      startWithTiming(container, idx, (window.OFFLINE.tts[idx].words) || []);
+      return;
+    }
 
     fetch('assets/tts/lib-' + idx + '.json').then(function (r) {
       if (!r.ok) throw new Error('no-timing');
@@ -1435,7 +1479,9 @@
   window.Reading = {
     render: render,
     generate: generateArticle,
-    loadArticle: loadArticle
+    loadArticle: loadArticle,
+    annotate: annotateWithKuroshiro,   // 供离线预生成脚本调用（强制走 kuroshiro，不查离线表）
+    initKuroshiro: initKuroshiro
   };
 
 })();
