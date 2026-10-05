@@ -115,6 +115,9 @@ button {
 /* ---------- 主内容区 ---------- */
 #main {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding: 24px 28px 96px; /* 底部留出固定导航栏空间 */
 }
 
@@ -201,6 +204,8 @@ button {
 
 .page.active {
   display: block;
+  flex: 1 1 auto;
+  min-height: 0;
   animation: fadeIn 0.3s ease;
 }
 
@@ -585,30 +590,73 @@ button {
 }
 .row-cell.done .row-prog { color: var(--color-success); }
 
-/* ---------- 12. 测验选项：2×2 网格，对绿错红 ---------- */
+/* ---------- 12. 测验页：整页撑满可用高度，答题不滚动（16:9 友好） ---------- */
+#page-quiz.active {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  min-height: 0;
+}
+#page-quiz.active > * + * { margin-top: 0; }   /* 用 gap 取代通用间距 */
+
+#quiz-header { flex: 0 0 auto; }
+
 #quiz-question {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: 40px 24px;
+  padding: 16px 24px;
   text-align: center;
   font-family: var(--font-kana);
-  font-size: 72px;
   font-weight: 700;
+  overflow: hidden;
 }
 
+/* 题面文字：小字提示，不再继承大字号 */
+.quiz-prompt {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+/* 题干假名 / 罗马音：随高度自适应 */
+#quiz-question .kana-char.big {
+  font-size: clamp(56px, 17vh, 150px);
+  line-height: 1;
+}
+#quiz-question .quiz-romaji.big {
+  font-size: clamp(30px, 9vh, 76px);
+  letter-spacing: 2px;
+  color: var(--color-primary);
+  font-weight: 800;
+  line-height: 1;
+}
+#quiz-question .btn-speak { width: 96px; height: 96px; margin: 8px auto 0; }
+#quiz-question .btn-speak svg { width: 46px; height: 46px; }
+
 #quiz-options {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
 }
 
 .quiz-option {
-  padding: 20px 12px;
+  padding: 14px 12px;
   background: var(--color-card);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   transition: transform 0.1s;
 }
@@ -630,7 +678,8 @@ button {
 }
 
 #quiz-feedback {
-  min-height: 28px;
+  flex: 0 0 auto;
+  min-height: 26px;
   text-align: center;
   font-size: 18px;
   font-weight: 800;
@@ -640,10 +689,13 @@ button {
 #quiz-feedback.wrong { color: var(--color-error); }
 
 #quiz-result {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: 32px 24px;
+  padding: 24px;
   text-align: center;
 }
 
