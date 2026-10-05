@@ -115,9 +115,6 @@ button {
 /* ---------- 主内容区 ---------- */
 #main {
   flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
   padding: 24px 28px 96px; /* 底部留出固定导航栏空间 */
 }
 
@@ -204,8 +201,6 @@ button {
 
 .page.active {
   display: block;
-  flex: 1 1 auto;
-  min-height: 0;
   animation: fadeIn 0.3s ease;
 }
 
@@ -590,80 +585,30 @@ button {
 }
 .row-cell.done .row-prog { color: var(--color-success); }
 
-/* ---------- 12. 测验页：按调参器选定值（1600×900 实测不滚动） ---------- */
-#page-quiz.active {
-  display: flex;
-  flex-direction: column;
-  justify-content: safe center;
-  gap: 21px;
-  min-height: 0;
-  overflow-y: auto;      /* 屏幕过矮时内部滚动，不裁切 */
-  padding-top: 8px;      /* 与 #main 的 24px 合计 32px */
-}
-#page-quiz.active > * + * { margin-top: 0; }   /* 用 gap 取代通用间距 */
-
-#quiz-header { flex: 0 0 auto; }
-
+/* ---------- 12. 测验选项：2×2 网格，对绿错红 ---------- */
 #quiz-question {
-  flex: 0 1 auto;
-  min-height: min(312px, 40vh);
-  max-height: min(600px, 68vh);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   background: var(--color-card);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: 16px 24px;
+  padding: 40px 24px;
   text-align: center;
   font-family: var(--font-kana);
+  font-size: 72px;
   font-weight: 700;
-  overflow: hidden;
 }
-
-/* 题面文字：小字提示，不再继承大字号 */
-.quiz-prompt {
-  font-family: var(--font-body);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-}
-
-/* 题干假名 / 罗马音 / 喇叭：以调参值封顶，屏幕变矮时按比例缩小 */
-#quiz-question .kana-char.big {
-  font-size: min(158px, 18vh);
-  line-height: 1;
-}
-#quiz-question .quiz-romaji.big {
-  font-size: min(96px, 11vh);
-  letter-spacing: 2px;
-  color: var(--color-primary);
-  font-weight: 800;
-  line-height: 1;
-}
-#quiz-question .btn-speak {
-  width: min(112px, 13vh);
-  height: min(112px, 13vh);
-  margin: 8px auto 0;
-}
-#quiz-question .btn-speak svg { width: 44%; height: 44%; }
 
 #quiz-options {
-  flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr;   /* 一行一个 */
-  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .quiz-option {
-  padding: 14px 12px;
+  padding: 20px 12px;
   background: var(--color-card);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  font-size: 25px;
+  font-size: 22px;
   font-weight: 700;
   transition: transform 0.1s;
 }
@@ -685,8 +630,7 @@ button {
 }
 
 #quiz-feedback {
-  flex: 0 0 auto;
-  min-height: 26px;
+  min-height: 28px;
   text-align: center;
   font-size: 18px;
   font-weight: 800;
@@ -696,16 +640,10 @@ button {
 #quiz-feedback.wrong { color: var(--color-error); }
 
 #quiz-result {
-  flex: 0 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  align-self: center;
-  width: 100%;
-  max-width: 720px;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: 24px;
+  padding: 32px 24px;
   text-align: center;
 }
 
@@ -783,19 +721,12 @@ button {
   }
 }
 
-/* ---------- 15. 宽屏：学习/练习页居中限宽；测验页用调参宽度 ---------- */
+/* ---------- 15. 宽屏：学习/练习/测验页内容居中限宽 ---------- */
 @media (min-width: 769px) {
   #page-learn,
-  #page-practice {
-    max-width: 560px;
-    margin: 0 auto;
-  }
-
-  /* 测验页：按调参器选定 910px 居中 */
+  #page-practice,
   #page-quiz {
-    width: 100%;
-    max-width: 910px;
-    align-self: center;
+    max-width: 560px;
     margin: 0 auto;
   }
 
