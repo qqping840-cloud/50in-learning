@@ -603,8 +603,9 @@ button {
 #quiz-header { flex: 0 0 auto; }
 
 #quiz-question {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 1 auto;
+  min-height: min(42vh, 380px);
+  max-height: 60vh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -629,20 +630,24 @@ button {
   line-height: 1.4;
 }
 
-/* 题干假名 / 罗马音：随高度自适应 */
+/* 题干假名 / 罗马音 / 喇叭：随视口高度缩放 */
 #quiz-question .kana-char.big {
-  font-size: clamp(56px, 17vh, 150px);
+  font-size: clamp(56px, 15vh, 150px);
   line-height: 1;
 }
 #quiz-question .quiz-romaji.big {
-  font-size: clamp(30px, 9vh, 76px);
+  font-size: clamp(30px, 9vh, 84px);
   letter-spacing: 2px;
   color: var(--color-primary);
   font-weight: 800;
   line-height: 1;
 }
-#quiz-question .btn-speak { width: 96px; height: 96px; margin: 8px auto 0; }
-#quiz-question .btn-speak svg { width: 46px; height: 46px; }
+#quiz-question .btn-speak {
+  width: clamp(72px, 15vh, 150px);
+  height: clamp(72px, 15vh, 150px);
+  margin: 8px auto 0;
+}
+#quiz-question .btn-speak svg { width: 44%; height: 44%; }
 
 #quiz-options {
   flex: 0 0 auto;
@@ -692,6 +697,9 @@ button {
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
+  align-self: center;
+  width: 100%;
+  max-width: 720px;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -773,19 +781,30 @@ button {
   }
 }
 
-/* ---------- 15. 宽屏：学习/练习/测验页内容居中限宽 ---------- */
+/* ---------- 15. 宽屏：学习/练习页居中限宽；测验页用宽布局 ---------- */
 @media (min-width: 769px) {
   #page-learn,
-  #page-practice,
-  #page-quiz {
+  #page-practice {
     max-width: 560px;
     margin: 0 auto;
+  }
+
+  /* 测验页在宽屏下用满横向空间，别挤成竖屏窄条 */
+  #page-quiz {
+    width: 100%;
+    max-width: none;
+    margin: 0;
   }
 
   #page-chart {
     max-width: 800px;
     margin: 0 auto;
   }
+}
+
+/* 更宽（平板横屏 / 桌面）：选项排一行 4 个，充分利用宽度 */
+@media (min-width: 900px) {
+  #quiz-options { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* ---------- 16. 50音表页 ---------- */
