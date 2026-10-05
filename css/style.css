@@ -1129,6 +1129,16 @@ button {
   margin-bottom: 12px;
   font-size: 13px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reading-notice-retry {
+  padding: 4px 14px;
+  font-size: 13px;
+  flex: 0 0 auto;
 }
 
 /* 打字模式 */

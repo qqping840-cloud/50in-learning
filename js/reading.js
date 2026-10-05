@@ -84,23 +84,24 @@
   var kuroshiroReady = false;
   var globalKuroshiro = null;
 
-  // 惰性初始化 kuroshiro，返回 Promise。失败时返回 null（降级，不崩）
+  // 惰性初始化 kuroshiro，返回 Promise。失败时返回 false（降级，不崩）。
+  // 注意：失败不缓存 —— 清掉 promise，下次打开文章会重试（服务刚重启时很常见）
   function initKuroshiro() {
     if (kuroshiroReady) return Promise.resolve(true);
     if (kuroshiroPromise) return kuroshiroPromise;
     kuroshiroPromise = new Promise(function (resolve) {
       try {
         if (typeof Kuroshiro === 'undefined' || typeof KuromojiAnalyzer === 'undefined') {
+          kuroshiroPromise = null;
           resolve(false); return;
         }
         // kuroshiro 的 UMD 构建挂在 window.Kuroshiro.default 上
         var KuroshiroCtor = Kuroshiro.default || Kuroshiro;
         var k = new KuroshiroCtor();
         k.init(new KuromojiAnalyzer({ dictPath: 'assets/lib/dict' }))
-          .then(function () { kuroshiroReady = true; resolve(true); })
-          .catch(function () { resolve(false); });
-        globalKuroshiro = k;
-      } catch (e) { resolve(false); }
+          .then(function () { kuroshiroReady = true; globalKuroshiro = k; resolve(true); })
+          .catch(function () { kuroshiroPromise = null; resolve(false); });
+      } catch (e) { kuroshiroPromise = null; resolve(false); }
     });
     return kuroshiroPromise;
   }
@@ -1056,12 +1057,15 @@
     var isFile = (typeof location !== 'undefined') && location.protocol === 'file:';
     var notice = isFile
       ? '<div class="reading-notice">⚠️ 汉字注音需要启动本地服务：请双击 <b>start.bat</b> 打开，而不是直接双击 index.html</div>'
-      : '<div class="reading-notice">⚠️ 注音词典加载失败，已降级为无注音模式</div>';
+      : '<div class="reading-notice">⚠️ 注音词典没加载成功（本地服务可能没在运行）。' +
+        '<button class="btn btn-secondary reading-notice-retry" id="btn-anno-retry">重试</button></div>';
     var html = '<div class="reading-article' + (hide ? ' hide-romaji' : '') + '">';
     html += plainHtml(state.article);
     html += '</div>';
     box.innerHTML = notice + html;
     bindCharClick(box);
+    var retry = el('btn-anno-retry');
+    if (retry) retry.onclick = function () { renderArticle(); };
   }
 
   // 绑定点读：假名点读原假名，汉字点读 data-reading 假名读音
