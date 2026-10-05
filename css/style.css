@@ -590,13 +590,15 @@ button {
 }
 .row-cell.done .row-prog { color: var(--color-success); }
 
-/* ---------- 12. 测验页：整页撑满可用高度，答题不滚动（16:9 友好） ---------- */
+/* ---------- 12. 测验页：按调参器选定值（1600×900 实测不滚动） ---------- */
 #page-quiz.active {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 12px;
+  justify-content: safe center;
+  gap: 21px;
   min-height: 0;
+  overflow-y: auto;      /* 屏幕过矮时内部滚动，不裁切 */
+  padding-top: 8px;      /* 与 #main 的 24px 合计 32px */
 }
 #page-quiz.active > * + * { margin-top: 0; }   /* 用 gap 取代通用间距 */
 
@@ -604,15 +606,15 @@ button {
 
 #quiz-question {
   flex: 0 1 auto;
-  min-height: min(42vh, 380px);
-  max-height: 60vh;
+  min-height: min(312px, 40vh);
+  max-height: min(600px, 68vh);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
   background: var(--color-card);
-  border-radius: var(--radius-lg);
+  border-radius: 24px;
   box-shadow: var(--shadow-md);
   padding: 16px 24px;
   text-align: center;
@@ -630,21 +632,21 @@ button {
   line-height: 1.4;
 }
 
-/* 题干假名 / 罗马音 / 喇叭：随视口高度缩放 */
+/* 题干假名 / 罗马音 / 喇叭：以调参值封顶，屏幕变矮时按比例缩小 */
 #quiz-question .kana-char.big {
-  font-size: clamp(56px, 15vh, 150px);
+  font-size: min(158px, 18vh);
   line-height: 1;
 }
 #quiz-question .quiz-romaji.big {
-  font-size: clamp(30px, 9vh, 84px);
+  font-size: min(96px, 11vh);
   letter-spacing: 2px;
   color: var(--color-primary);
   font-weight: 800;
   line-height: 1;
 }
 #quiz-question .btn-speak {
-  width: clamp(72px, 15vh, 150px);
-  height: clamp(72px, 15vh, 150px);
+  width: min(112px, 13vh);
+  height: min(112px, 13vh);
   margin: 8px auto 0;
 }
 #quiz-question .btn-speak svg { width: 44%; height: 44%; }
@@ -652,7 +654,7 @@ button {
 #quiz-options {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;   /* 一行一个 */
   gap: 10px;
 }
 
@@ -661,7 +663,7 @@ button {
   background: var(--color-card);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  font-size: 20px;
+  font-size: 25px;
   font-weight: 700;
   transition: transform 0.1s;
 }
@@ -781,7 +783,7 @@ button {
   }
 }
 
-/* ---------- 15. 宽屏：学习/练习页居中限宽；测验页用宽布局 ---------- */
+/* ---------- 15. 宽屏：学习/练习页居中限宽；测验页用调参宽度 ---------- */
 @media (min-width: 769px) {
   #page-learn,
   #page-practice {
@@ -789,22 +791,18 @@ button {
     margin: 0 auto;
   }
 
-  /* 测验页在宽屏下用满横向空间，别挤成竖屏窄条 */
+  /* 测验页：按调参器选定 910px 居中 */
   #page-quiz {
     width: 100%;
-    max-width: none;
-    margin: 0;
+    max-width: 910px;
+    align-self: center;
+    margin: 0 auto;
   }
 
   #page-chart {
     max-width: 800px;
     margin: 0 auto;
   }
-}
-
-/* 更宽（平板横屏 / 桌面）：选项排一行 4 个，充分利用宽度 */
-@media (min-width: 900px) {
-  #quiz-options { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* ---------- 16. 50音表页 ---------- */
