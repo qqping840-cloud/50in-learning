@@ -289,18 +289,24 @@
   }
 
   // ---------- 错题复习（入口在练习页，由 ui.js 渲染） ----------
-  var REVIEW_MIN_SCORE = 1.5;   // 错题分 ≥ 1.5 才入池（即近期至少错两次）
   var REVIEW_LENGTH = 60;       // 每次练习的假名个数
 
   function reviewPoolSize() {
-    return Object.keys(window.Storage.getWeakKana(REVIEW_MIN_SCORE)).length;
+    var rows = (window.Storage.getTypingRank() || {}).rows || [];
+    return rows.filter(function (r) {
+      return Math.max(0, Math.floor(Number(r.wrong) || 0)) > 0;
+    }).length;
   }
 
   function startReview() {
-    var weights = window.Storage.getWeakKana(REVIEW_MIN_SCORE);
-    var all = window.KANA_DATA.map(function (k) { return k.hiragana; });
-    var learned = all.filter(function (c) { return window.Storage.getKana(c).box >= 1; });
-    var text = window.Typing.buildReviewText(weights, learned, all, REVIEW_LENGTH);
+    var rows = (window.Storage.getTypingRank() || {}).rows || [];
+    var weights = {};
+    rows.forEach(function (r) {
+      var wrong = Math.max(0, Math.floor(Number(r.wrong) || 0));
+      if (wrong > 0 && r.char) weights[r.char] = wrong;
+    });
+    if (!Object.keys(weights).length) return;
+    var text = window.Typing.buildReviewText(weights, REVIEW_LENGTH);
     state.article = text;
     state.articleIdx = null;
     state.articleRes = null;
@@ -367,7 +373,7 @@
     }
     html += '<div class="mistakes-note">依据最近两次打字练习</div>';
     html += '<div class="mistakes-actions">' +
-      '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start">开始错题练习</button>' +
+      '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start"' + (rows.length ? '' : ' disabled') + '>开始错题练习</button>' +
       '<button class="mistakes-btn mistakes-btn-ghost" id="btn-mistakes-back">返回文章</button>' +
     '</div>';
     html += '<div class="mistakes-footer">' +

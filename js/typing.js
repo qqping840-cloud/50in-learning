@@ -229,8 +229,6 @@
   }
 
   // ---------- 错题复习出题 ----------
-  // 每个位置的来源比例：错题池 60% / 学过的假名 25% / 其他 15%
-  var REVIEW_MIX = { weak: 0.6, learned: 0.25 };
   var REVIEW_GROUP_MIN = 3, REVIEW_GROUP_MAX = 5;
 
   function pickWeighted(weights) {
@@ -245,30 +243,26 @@
     return keys[keys.length - 1];
   }
 
-  function pickUniform(list) {
-    return list[Math.floor(Math.random() * list.length)];
-  }
-
   /**
    * 生成错题复习的假名练习文本（纯假名，3~5 个一组用空格分隔）
-   * @param {Object} weights 错题池 { 假名: 权重 }，可为空对象
-   * @param {string[]} learned 已学过的假名
-   * @param {string[]} all 全部假名
+   * 只从 weights 的键里出题，权重越高越常出；weights 为空时返回空字符串。
+   * @param {Object} weights { 假名: 权重（错误次数） }
    * @param {number} total 假名个数
    */
-  function buildReviewText(weights, learned, all, total) {
-    var hasWeak = Object.keys(weights).length > 0;
-    var learnedList = learned.length ? learned : all;
+  function buildReviewText(weights, total) {
+    var keys = Object.keys(weights);
+    if (!keys.length) return '';
     var seq = [], prev = null;
     for (var i = 0; i < total; i++) {
-      var r = Math.random(), c = null;
-      // 尽量避免同一假名连续出现
-      for (var tries = 0; tries < 20; tries++) {
-        if (hasWeak && r < REVIEW_MIX.weak) c = pickWeighted(weights);
-        else if (r < REVIEW_MIX.weak + REVIEW_MIX.learned) c = pickUniform(learnedList);
-        else c = pickUniform(all);
-        if (c !== prev) break;
-        r = Math.random();
+      var c = pickWeighted(weights);
+      // 尽量避免同一假名连续出现（重试上限 20）。
+      // 池子里只有 1~2 个假名时，「不连续」会退化成严格交替、把权重抹平，
+      // 与「权重越高越常出」冲突，故此时不做去重（仍按权重抽取）。
+      if (keys.length > 2 && c === prev) {
+        for (var tries = 0; tries < 20; tries++) {
+          var c2 = pickWeighted(weights);
+          if (c2 !== prev) { c = c2; break; }
+        }
       }
       seq.push(c);
       prev = c;
