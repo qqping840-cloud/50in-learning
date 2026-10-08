@@ -1387,7 +1387,7 @@
 
       // 当前输入缓冲显示
       html += '<div class="typing-buffer">' +
-        '<span class="typing-buffer-target">' + (st.target ? esc(st.target.romaji) : '') + '</span>' +
+        '<span class="typing-buffer-target">' + (this.hintOn && st.target ? esc(st.target.romaji) : '') + '</span>' +
         '<span class="typing-buffer-typed">' + esc(st.buffer) + '</span>' +
         '<span class="typing-cursor"></span>' +
       '</div>';
