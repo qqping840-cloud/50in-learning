@@ -21,6 +21,7 @@
   --color-text: #1C1917;         /* 深墨文字 */
   --color-text-secondary: #78716C;
   --color-border: #E7E5E4;
+  --seal-ink: #FDFCF9;           /* 印章文字：接近浅纸底色，朱红印面可读（对比度≈5.8:1） */
   --radius-sm: 8px;
   --radius-md: 16px;
   --radius-lg: 24px;
@@ -47,6 +48,7 @@
   --color-text: #F5F5F4;         /* 米白文字 */
   --color-text-secondary: #A8A29E;
   --color-border: #3F3F46;
+  --seal-ink: #F5F5F4;           /* 印章文字：深色下仍用浅纸色保证朱红印面对比度（≈5.6:1） */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
   --shadow-lg: 0 10px 15px rgba(0,0,0,0.5);
@@ -2074,25 +2076,22 @@ button {
   padding: 20px 16px;
   max-width: 420px;
   margin: 0 auto;
-  background-color: var(--color-bg);
-  /* 和纸纤维：纯 CSS SVG 噪点（fractalNoise），透明度压到 0.04~0.08 */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+  background-color: var(--color-bg);   /* 回退底色 */
+  /* 和纸：真实纸墨纹理图（tools/gen_textures.py 生成） */
+  background-image: url("../assets/textures/washi-light.png");
+  background-size: cover;
   border-radius: var(--radius-md);
 }
 [data-theme="dark"] .mistakes-view {
-  background-color: #201d1a; /* 回退：略暖深灰 */
-  /* 暖纸深灰：用已有变量调出微暖，不引入新色系 */
+  /* 回退：略暖深灰 */
   background-color: color-mix(in srgb, var(--color-accent-light) 16%, var(--color-bg));
-  /* 深色纸纤维：同一套噪点，透明度略低 */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  background-image: url("../assets/textures/washi-dark.png");
+  background-size: cover;
   box-shadow: none;
 }
-/* 深色下：标题/字符用正文色，强调只用答错色，去掉发光与阴影 */
+/* 深色下：字符用正文色 */
 [data-theme="dark"] .mistakes-char { color: var(--color-text); }
-[data-theme="dark"] .mistakes-stamp,
-[data-theme="dark"] .mistakes-stamp-num,
-[data-theme="dark"] .mistakes-stamp-label { filter: none; text-shadow: none; box-shadow: none; }
-/* 印章：整体错误率（SVG 磨损边缘 + 竖排衬线字），靠左与说明并列 */
+/* 印章：整体错误率（真实印章图 + 横向衬线字），靠左与说明并列 */
 .mistakes-stamp-row {
   display: flex;
   align-items: center;
@@ -2104,38 +2103,32 @@ button {
   width: 120px;
   height: 120px;
   flex: 0 0 auto;
-  color: var(--color-error);
   transform: rotate(-4deg);
-}
-.mistakes-stamp-svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
+  /* 印章：真实印泥纹理图，数字与「错误率」叠在印面中央 */
+  background: url("../assets/textures/seal.png") center / contain no-repeat;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 .mistakes-stamp-num,
 .mistakes-stamp-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  writing-mode: vertical-rl;
-  text-orientation: upright;
   font-family: "Songti SC", "STSong", "SimSun", serif;
   font-weight: 800;
-  color: var(--color-error);
+  color: var(--seal-ink);
   line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(80, 20, 12, .45);
 }
 .mistakes-stamp-num {
-  font-size: 23px;
-  letter-spacing: 2px;
-  transform: translate(-50%, -50%) translateX(-12px);
+  font-size: 26px;
+  letter-spacing: 1px;
 }
 .mistakes-stamp-label {
   font-size: 12px;
-  letter-spacing: 4px;
-  opacity: 0.85;
-  transform: translate(-50%, -50%) translateX(13px);
+  letter-spacing: 3px;
+  opacity: 0.92;
 }
 .mistakes-head { font-size: 13px; color: var(--color-text-secondary); text-align: left; line-height: 1.7; font-family: "Songti SC", "STSong", "SimSun", serif; }
 .mistakes-empty { color: var(--color-text-secondary); padding: 24px 0; text-align: center; }

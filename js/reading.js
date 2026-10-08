@@ -332,37 +332,9 @@
     var pct = Math.max(0, Math.min(100, Math.round(rate * 100)));
     var rows = rank && rank.rows ? rank.rows : [];
     var html = '<div class="mistakes-view">';
-    // 印章：SVG 圆角方框，印面油墨不均（噪声 mask）+ 不规则断墨边
+    // 印章：真实印泥纹理图（assets/textures/seal.png），数字与「错误率」叠在印面中央
     html += '<div class="mistakes-stamp-row">';
     html += '<div class="mistakes-stamp" role="img" aria-label="整体错误率 ' + pct + '%">';
-    html += '<svg class="mistakes-stamp-svg" viewBox="0 0 120 120" aria-hidden="true" focusable="false">' +
-      '<defs>' +
-        '<filter id="stamp-rough" x="-30%" y="-30%" width="160%" height="160%">' +
-          '<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="11" result="noise"/>' +
-          '<feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>' +
-        '</filter>' +
-        // 油墨不均：fractalNoise -> 灰度 -> 压对比到 0.5~1 -> 裁进印面形状，作 mask
-        '<filter id="stamp-ink" x="-5%" y="-5%" width="110%" height="110%">' +
-          '<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" result="grain"/>' +
-          '<feColorMatrix in="grain" type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" result="gray"/>' +
-          '<feComponentTransfer in="gray" result="soft">' +
-            '<feFuncR type="table" tableValues="0.5 1"/><feFuncG type="table" tableValues="0.5 1"/><feFuncB type="table" tableValues="0.5 1"/>' +
-          '</feComponentTransfer>' +
-          '<feComposite in="soft" in2="SourceGraphic" operator="in"/>' +
-        '</filter>' +
-        '<mask id="stamp-mask">' +
-          '<rect x="10" y="10" width="100" height="100" rx="14" fill="#fff" filter="url(#stamp-ink)"/>' +
-        '</mask>' +
-      '</defs>' +
-      '<g filter="url(#stamp-rough)">' +
-        // 印面淡红底 + 颗粒（mask 造成深浅不均）
-        '<rect x="10" y="10" width="100" height="100" rx="14" fill="currentColor" opacity="0.14" mask="url(#stamp-mask)"/>' +
-        // 主框：不等长 dash 的断墨边，并叠油墨颗粒
-        '<rect x="10" y="10" width="100" height="100" rx="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="23 5 11 3 7 6 17 4 9 2 14 5" mask="url(#stamp-mask)"/>' +
-        '<rect x="15" y="15" width="90" height="90" rx="11" fill="none" stroke="currentColor" stroke-width="2" opacity="0.5" stroke-dasharray="12 6 4 9 19 3 8 7 15 4"/>' +
-        '<rect x="24" y="24" width="72" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" stroke-dasharray="9 5 3 8 13 4"/>' +
-      '</g>' +
-    '</svg>';
     html += '<span class="mistakes-stamp-num">' + pct + '%</span>';
     html += '<span class="mistakes-stamp-label">错误率</span>';
     html += '</div>';
@@ -371,16 +343,17 @@
     if (!rows.length) {
       html += '<div class="mistakes-empty">还没有打字记录，先练一篇文章吧</div>';
     } else {
-      // 最大错误次数：用于墨团透明度的线性映射
+      // 最大错误次数：用于墨团直径/透明度的归一化（至少为 1）
       var maxWrong = 0;
       rows.forEach(function (r) { maxWrong = Math.max(maxWrong, Math.floor(Number(r.wrong) || 0)); });
+      var maxCount = Math.max(1, maxWrong);
       html += '<div class="mistakes-list">';
       rows.forEach(function (r, i) {
         var wrong = Math.max(0, Math.floor(Number(r.wrong) || 0));
         if (wrong === 0) return;   // 无错不显示
-        // 墨团：直径随次数增长（4~14px），透明度 0.6~1 随次数线性
-        var dia = Math.round(Math.min(14, 4 + wrong * 1.2));
-        var op = maxWrong > 0 ? 0.6 + 0.4 * (wrong / maxWrong) : 0.6;
+        // 墨团：直径按本列表最大错误次数归一化（6~22px），透明度 0.55~1
+        var dia = Math.round(6 + 16 * (wrong / maxCount));
+        var op = 0.55 + 0.45 * (wrong / maxCount);
         var rate = Math.max(0, Math.min(100, Math.round((Number(r.rate) || 0) * 100)));
         html += '<div class="mistakes-row">' +
           '<span class="mistakes-rank">' + (i + 1) + '</span>' +
