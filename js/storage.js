@@ -24,6 +24,20 @@
     if (!data.stats.daily) data.stats.daily = {};
     var key = dateStr(new Date());
     data.stats.daily[key] = (data.stats.daily[key] || 0) + 1;
+    data.stats.streakDays = computeStreak(data.stats.daily);
+    data.stats.lastStudyDate = key;
+  }
+
+  // 从今天（今天没学则从昨天）往回数，连续有学习记录的天数
+  function computeStreak(daily) {
+    var d = new Date();
+    if (!daily[dateStr(d)]) d.setDate(d.getDate() - 1);
+    var n = 0;
+    while (daily[dateStr(d)]) {
+      n++;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
   }
 
   window.Storage = {
@@ -82,13 +96,9 @@
 
     // 更新连续学习天数：同一天重复调用不变；昨天学过则连续 +1，否则重新计 1
     updateStreak: function () {
-      var stats = this.getStats();
-      var today = dateStr(new Date());
-      if (stats.lastStudyDate === today) return;
-      var y = new Date();
-      y.setDate(y.getDate() - 1);
-      var streak = (stats.lastStudyDate === dateStr(y)) ? (stats.streakDays || 0) + 1 : 1;
-      this.updateStats({ streakDays: streak, lastStudyDate: today });
+      var data = this.load();
+      data.stats.streakDays = computeStreak(data.stats.daily || {});
+      this.save(data);
     },
 
     // 重置全部进度

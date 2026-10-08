@@ -225,7 +225,6 @@
 
   function renderHome() {
     renderProgressOverview();
-    renderTodayTasks();
     renderRowMap();
     renderActivityHeatmap();
   }
@@ -282,6 +281,8 @@
         '</div>' +
       '</div>' +
       '<div class="hm-legend"><span>少</span>' + legend + '<span>多</span></div>';
+    var scroll = box.querySelector('.hm-scroll');
+    if (scroll) scroll.scrollLeft = scroll.scrollWidth;
   }
 
   // 进度总览：大进度环 + 三个数字
@@ -305,25 +306,6 @@
         '<div class="pn-item"><div class="pn-num learning">' + learning + '</div><div class="pn-label">学习中</div></div>' +
         '<div class="pn-item"><div class="pn-num not-started">' + notStarted + '</div><div class="pn-label">未学</div></div>' +
       '</div>';
-  }
-
-  // 今日任务卡片
-  function renderTodayTasks() {
-    var box = el('today-tasks');
-    if (!box) return;
-    var tasks = SRS.getTodayTasks();
-    box.innerHTML =
-      '<h2 class="section-title">今日任务</h2>' +
-      '<div class="task-list">' +
-        '<div class="task-item">复习 <b>' + tasks.review.length + '</b> 个假名</div>' +
-        '<div class="task-item">新学 <b>' + tasks.new.length + '</b> 个假名（' + esc(tasks.currentRowName) + '）</div>' +
-      '</div>' +
-      '<button class="btn btn-primary" id="btn-start-learn">开始学习</button>';
-    el('btn-start-learn').onclick = function () {
-      state.learnRow = tasks.currentRow;
-      state.learnIndex = 0;
-      App.navigate('learn');
-    };
   }
 
   // 学习路径地图：27 行

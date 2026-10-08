@@ -400,7 +400,7 @@ button {
 /* ---------- 10. 首页布局：16:9 桌面横向网格 ---------- */
 #page-home.active {
   display: grid;
-  grid-template-columns: 1fr 1.2fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
   gap: 20px;
   align-items: start;
 }
@@ -496,25 +496,8 @@ button {
   font-weight: 600;
 }
 
-/* 今日任务 */
-#today-tasks {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: #fff;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: 24px 28px;
-}
-
-#today-tasks .section-title {
-  font-size: 14px;
-  font-weight: 700;
-  opacity: 0.85;
-  margin-bottom: 12px;
-}
-
 /* 学习热力图 */
 #activity-heatmap {
-  grid-column: 1 / -1;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -603,29 +586,6 @@ button {
 
 .hm-legend .hm-cell { margin: 0 1px; }
 
-.task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.task-item {
-  font-size: 16px;
-}
-
-.task-item b {
-  font-size: 24px;
-  font-weight: 800;
-  margin: 0 4px;
-}
-
-#today-tasks .btn-primary {
-  background: #fff;
-  color: var(--color-primary-dark);
-  box-shadow: 0 4px 0 rgba(0,0,0,0.15);
-  width: 100%;
-}
 
 /* 学习路径地图 */
 #row-map {
