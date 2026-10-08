@@ -6,6 +6,8 @@
 (function () {
   var KEY = 'kana-progress-v1';
   var ERR_KEY = 'kana-typing-errors-v1';   // 打字错题本，独立存储，不走 bumpDaily
+  var SESSION_KEY = 'kana-typing-sessions-v1'; // 打字会话记录 { seq, list:[{id,startedAt,perKana}] }
+  var RANK_KEY = 'kana-typing-rank-v1';    // 每日错题排行快照
   var DECAY = 0.8;                         // 错题分每过一天乘 0.8
   var CLEAN_TO_CLEAR = 10;                 // 同一假名连续答对 10 次，错题分清零
 
@@ -49,6 +51,18 @@
 
   function loadErrors() {
     try { return JSON.parse(localStorage.getItem(ERR_KEY)) || {}; } catch (e) { return {}; }
+  }
+
+  function loadSessions() {
+    try {
+      var d = JSON.parse(localStorage.getItem(SESSION_KEY));
+      if (!d || !Array.isArray(d.list)) return { seq: 0, list: [] };
+      return d;
+    } catch (e) { return { seq: 0, list: [] }; }
+  }
+
+  function loadRank() {
+    try { return JSON.parse(localStorage.getItem(RANK_KEY)) || null; } catch (e) { return null; }
   }
 
   function decayedScore(e, today) {
@@ -157,10 +171,73 @@
       localStorage.removeItem(ERR_KEY);
     },
 
-    // 重置全部进度（含错题本）
+    // 保存一次打字会话：attempts 总量 > 0 才存；只留最近 20 条；id 用递增序号
+    saveTypingSession: function (session) {
+      if (!session || !session.perKana) return;
+      var total = 0;
+      Object.keys(session.perKana).forEach(function (c) {
+        total += session.perKana[c].attempts || 0;
+      });
+      if (total <= 0) return;
+      var store = loadSessions();
+      store.seq++;
+      session.id = store.seq;
+      store.list.push(session);
+      if (store.list.length > 20) store.list = store.list.slice(store.list.length - 20);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(store));
+    },
+
+    // 每日错题排行：基于最近两次会话，只留 wrong > 0，按 wrong 降序、错误率降序取前 10。
+    // 快照每天最多刷新一次，且只有出现新会话（seq 增加）才刷新；无新数据保持旧快照。
+    getTypingRank: function () {
+      var today = dateStr(new Date());
+      var store = loadSessions();
+      var snap = loadRank();
+
+      // 没有任何会话：返回空排行，不写快照
+      if (!store.list.length) {
+        return { day: today, seq: store.seq, rows: [], overall: { wrong: 0, attempts: 0, rate: 0 } };
+      }
+      // 已有快照：同一天保持旧快照；跨天但无新会话也保持旧快照
+      if (snap && (snap.day === today || store.seq <= snap.seq)) return snap;
+
+      var per = {};
+      store.list.slice(-2).forEach(function (s) {
+        Object.keys(s.perKana || {}).forEach(function (c) {
+          var e = s.perKana[c];
+          if (!per[c]) per[c] = { attempts: 0, wrong: 0 };
+          per[c].attempts += e.attempts || 0;
+          per[c].wrong += e.wrong || 0;
+        });
+      });
+      var overall = { wrong: 0, attempts: 0, rate: 0 };
+      var rows = [];
+      Object.keys(per).forEach(function (c) {
+        var e = per[c];
+        overall.wrong += e.wrong;
+        overall.attempts += e.attempts;
+        if (e.wrong > 0) {
+          rows.push({ char: c, wrong: e.wrong, attempts: e.attempts, rate: e.attempts ? e.wrong / e.attempts : 0 });
+        }
+      });
+      overall.rate = overall.attempts ? overall.wrong / overall.attempts : 0;
+      rows.sort(function (a, b) {
+        if (b.wrong !== a.wrong) return b.wrong - a.wrong;
+        return b.rate - a.rate;
+      });
+      rows = rows.slice(0, 10);
+
+      var fresh = { day: today, seq: store.seq, rows: rows, overall: overall };
+      localStorage.setItem(RANK_KEY, JSON.stringify(fresh));
+      return fresh;
+    },
+
+    // 重置全部进度（含错题本、会话、排行快照）
     reset: function () {
       localStorage.removeItem(KEY);
       localStorage.removeItem(ERR_KEY);
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(RANK_KEY);
     }
   };
 })();

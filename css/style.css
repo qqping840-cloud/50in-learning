@@ -2069,29 +2069,127 @@ button {
 /* 纯 CSS 控制显示：悬停词即出气泡（无需 JS 绑事件） */
 .anno-word:hover > .anno-tip { display: block; }
 
-/* 练习页：打字错题复习入口（次要卡片，不抢主练习的注意力） */
-.practice-review {
+/* 阅读页：错题仪表盘「和纸账本」 */
+.mistakes-view {
+  padding: 20px 16px;
+  max-width: 420px;
+  margin: 0 auto;
+  background-color: var(--color-bg);
+  /* 和纸纹理：极淡暖色横竖细纹（纯 CSS，无图片） */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.04) 0, rgba(120, 90, 50, 0.04) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(90deg, rgba(120, 90, 50, 0.025) 0, rgba(120, 90, 50, 0.025) 1px, transparent 1px, transparent 6px);
+  border-radius: var(--radius-md);
+}
+[data-theme="dark"] .mistakes-view {
+  background-color: #201d1a; /* 回退：略暖深灰 */
+  /* 暖纸深灰：用已有变量调出微暖，不引入新色系 */
+  background-color: color-mix(in srgb, var(--color-accent-light) 16%, var(--color-bg));
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255, 235, 210, 0.03) 0, rgba(255, 235, 210, 0.03) 1px, transparent 1px, transparent 4px),
+    repeating-linear-gradient(90deg, rgba(255, 235, 210, 0.02) 0, rgba(255, 235, 210, 0.02) 1px, transparent 1px, transparent 6px);
+  box-shadow: none;
+}
+/* 深色下：标题/字符用正文色，强调只用答错色，去掉发光与阴影 */
+[data-theme="dark"] .mistakes-char { color: var(--color-text); }
+[data-theme="dark"] .mistakes-stamp,
+[data-theme="dark"] .mistakes-stamp-num,
+[data-theme="dark"] .mistakes-stamp-label { filter: none; text-shadow: none; box-shadow: none; }
+/* 印章：整体错误率（SVG 磨损边缘 + 竖排衬线字），靠左与说明并列 */
+.mistakes-stamp-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--color-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 14px 18px;
+  gap: 18px;
+  margin-bottom: 14px;
 }
-
-.practice-review-title {
-  font-size: 14px;
+.mistakes-stamp {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  flex: 0 0 auto;
+  color: var(--color-error);
+  transform: rotate(-4deg);
+}
+.mistakes-stamp-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.mistakes-stamp-num,
+.mistakes-stamp-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: Georgia, 'Times New Roman', 'Songti SC', 'SimSun', serif;
   font-weight: 800;
-  color: var(--color-text);
+  color: var(--color-error);
+  line-height: 1;
 }
-
-.practice-review-hint {
+.mistakes-stamp-num {
+  font-size: 23px;
+  letter-spacing: 2px;
+  transform: translate(-50%, -50%) translateX(-12px);
+}
+.mistakes-stamp-label {
+  font-size: 12px;
+  letter-spacing: 4px;
+  opacity: 0.85;
+  transform: translate(-50%, -50%) translateX(13px);
+}
+.mistakes-head { font-size: 13px; color: var(--color-text-secondary); text-align: left; line-height: 1.7; font-family: Georgia, 'Songti SC', 'SimSun', serif; }
+.mistakes-empty { color: var(--color-text-secondary); padding: 24px 0; text-align: center; }
+.mistakes-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.mistakes-row { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border); }
+.mistakes-rank { width: 18px; font-size: 12px; color: var(--color-text-secondary); }
+.mistakes-char { font-family: var(--font-kana); font-size: 30px; font-weight: 700; width: 44px; line-height: 1; }
+.mistakes-dots { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+/* 直径与偏移由 renderMistakes 内联给出（大小不一、位置小幅抖动，非等距排列） */
+.mistakes-dot { width: 3px; height: 3px; flex: 0 0 auto; border-radius: 50%; background: var(--color-error); opacity: 0.7; }
+/* +N 并入墨点列：栅格右对齐，前置细虚线引导 */
+.mistakes-more {
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px dashed var(--color-border);
   font-size: 12px;
   color: var(--color-text-secondary);
-  margin-top: 2px;
 }
+/* 按钮区上方的手写感注记：次要文字色 */
+.mistakes-note {
+  margin-top: 14px;
+  font-family: Georgia, 'Songti SC', 'SimSun', serif;
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: .5px;
+  color: var(--color-text-secondary);
+  opacity: .8;
+}
+/* 卡片底部操作区：虚线分隔之上，按钮左对齐，间距收紧 */
+.mistakes-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--color-border);
+}
+/* 线框矩形按钮：2px 圆角，无阴影 */
+.mistakes-btn {
+  padding: 10px 18px;
+  border: 2px solid var(--color-error);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--color-error);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: none;
+  transition: transform 0.1s, opacity 0.15s;
+}
+.mistakes-btn:active { transform: translateY(1px); }
+.mistakes-btn-primary { background: var(--color-error); color: var(--color-bg); }
 
 /* 阅读工具栏里的返回按钮：不占满剩余宽度 */
 #reading-toolbar .btn-back { flex: 0 0 auto; }

@@ -20,6 +20,7 @@
     annotatedText: null, // 上次注音对应的文章文本（用于判断缓存是否过期）
     hideRomaji: false,
     typingActive: false,
+    mistakesActive: false, // 错题仪表盘视图
     generating: false,
     articleIdx: null,   // 内置文章下标（有预生成朗读音频）；AI 生成为 null
     articleRes: null,   // 结构化文章资源（带译文/词注），null=无
@@ -305,9 +306,94 @@
     state.articleRes = null;
     state.annoMode = 'off';
     state.hideRomaji = false;
+    state.mistakesActive = false;
     state.parsed = window.Typing.parseText(text);
     state.typingActive = true;
     renderArticleArea();
+  }
+
+  // 打开错题仪表盘：收起文章视图，占用打字区
+  function openMistakes() {
+    if (!state.article) return;
+    state.mistakesActive = true;
+    state.typingActive = false;
+    stopReadAloud();
+    renderArticleArea();
+  }
+
+  // 错题仪表盘「和纸账本」：整体错误率印章 + 每字墨点排行 + 入口
+  function renderMistakes() {
+    var wrap = el('reading-typing-wrap');
+    if (!wrap) return;
+    var rank = window.Storage.getTypingRank();
+    var overall = rank && rank.overall ? rank.overall : {};
+    var rate = Number(overall.rate);
+    if (!isFinite(rate)) rate = 0;
+    var pct = Math.max(0, Math.min(100, Math.round(rate * 100)));
+    var rows = rank && rank.rows ? rank.rows : [];
+    // 墨点固定抖动表（大小 3-5px + 小幅偏移，写死不用随机，保证每次渲染一致）
+    var DOT_JITTER = [
+      { x: 0, y: 0, s: 3 }, { x: 1, y: -1, s: 4 }, { x: -1, y: 1, s: 3 },
+      { x: 2, y: 0, s: 5 }, { x: 0, y: 1, s: 3 }, { x: -2, y: -1, s: 4 },
+      { x: 1, y: 1, s: 3 }, { x: 2, y: -1, s: 4 }, { x: -1, y: 0, s: 5 },
+      { x: 0, y: -2, s: 3 }, { x: 1, y: 2, s: 4 }, { x: -2, y: 1, s: 3 },
+      { x: 2, y: 1, s: 4 }, { x: -1, y: -2, s: 3 }, { x: 0, y: 0, s: 5 }
+    ];
+    var html = '<div class="mistakes-view">';
+    // 印章：SVG 圆角方框，边缘用 feTurbulence + feDisplacementMap 做轻微破损
+    html += '<div class="mistakes-stamp-row">';
+    html += '<div class="mistakes-stamp" role="img" aria-label="整体错误率 ' + pct + '%">';
+    html += '<svg class="mistakes-stamp-svg" viewBox="0 0 120 120" aria-hidden="true" focusable="false">' +
+      '<defs><filter id="stamp-rough" x="-30%" y="-30%" width="160%" height="160%">' +
+        '<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="11" result="noise"/>' +
+        '<feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>' +
+      '</filter></defs>' +
+      '<g filter="url(#stamp-rough)">' +
+        '<rect x="10" y="10" width="100" height="100" rx="14" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="26 4 9 6 18 3" stroke-linecap="round"/>' +
+        '<rect x="12" y="12" width="96" height="96" rx="12" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" stroke-dasharray="14 7 5 9 20 4"/>' +
+        '<rect x="24" y="24" width="72" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6" stroke-dasharray="10 5 3 8"/>' +
+      '</g>' +
+    '</svg>';
+    html += '<span class="mistakes-stamp-num">' + pct + '%</span>';
+    html += '<span class="mistakes-stamp-label">错误率</span>';
+    html += '</div>';
+    html += '<div class="mistakes-head">最近两次练习<br>统计于 ' + esc(rank && rank.day) + '</div>';
+    html += '</div>';
+    if (!rows.length) {
+      html += '<div class="mistakes-empty">还没有打字记录，先练一篇文章吧</div>';
+    } else {
+      html += '<div class="mistakes-list">';
+      rows.forEach(function (r, i) {
+        var wrong = Math.max(0, Math.floor(Number(r.wrong) || 0));
+        var dots = Math.min(wrong, 15);
+        var dotHtml = '';
+        for (var d = 0; d < dots; d++) {
+          var j = DOT_JITTER[d % DOT_JITTER.length];
+          dotHtml += '<span class="mistakes-dot" style="width:' + j.s + 'px;height:' + j.s + 'px;transform:translate(' + j.x + 'px,' + j.y + 'px)"></span>';
+        }
+        if (wrong > 15) dotHtml += '<span class="mistakes-more">+' + (wrong - 15) + '</span>';
+        html += '<div class="mistakes-row">' +
+          '<span class="mistakes-rank">' + (i + 1) + '</span>' +
+          '<span class="mistakes-char">' + esc(r.char) + '</span>' +
+          '<span class="mistakes-dots">' + dotHtml + '</span>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    html += '<div class="mistakes-note">依据最近两次打字练习</div>';
+    html += '<div class="mistakes-actions">' +
+      '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start">开始错题练习</button>' +
+      '<button class="mistakes-btn mistakes-btn-ghost" id="btn-mistakes-back">返回文章</button>' +
+    '</div>';
+    html += '</div>';
+    wrap.innerHTML = html;
+    var startBtn = el('btn-mistakes-start');
+    if (startBtn) startBtn.onclick = function () { startReview(); };
+    var backBtn = el('btn-mistakes-back');
+    if (backBtn) backBtn.onclick = function () {
+      state.mistakesActive = false;
+      renderArticleArea();
+    };
   }
 
   // ---------- 内置精选文章 ----------
@@ -380,6 +466,7 @@
     state.article = null;
     state.articleRes = null;
     state.typingActive = false;
+    state.mistakesActive = false;
     state.wordbookIdx = idx;
     renderArticleArea();
     renderWordbookView();
@@ -807,6 +894,15 @@
       if (state.article && !wasOpen) window.scrollTo(0, 0);
     }
 
+    // 错题仪表盘：隐藏文章视图，占用打字区
+    if (state.mistakesActive) {
+      view.style.display = 'none';
+      wrap.style.display = 'block';
+      stopReadAloud();
+      renderMistakes();
+      return;
+    }
+
     if (!state.article) {
       view.style.display = 'none';
       wrap.style.display = 'none';
@@ -838,6 +934,7 @@
       (state.articleIdx != null ? '<button class="btn btn-primary" id="btn-reading-read">朗读全文</button>' : '') +
       '<button class="btn btn-secondary" id="btn-reading-hide">' + (state.hideRomaji ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<button class="btn btn-primary" id="btn-reading-typing">打字练习</button>' +
+      '<button class="btn btn-secondary" id="btn-reading-mistakes">错题练习</button>' +
       '<button class="btn btn-secondary" id="btn-reading-regenerate">重新生成</button>';
 
     bindReadAloud();
@@ -845,6 +942,7 @@
       stopReadAloud();
       state.article = null;
       state.typingActive = false;
+      state.mistakesActive = false;
       TypingUI.engine = null;
       renderArticleArea();
     };
@@ -856,6 +954,9 @@
     el('btn-reading-typing').onclick = function () {
       state.typingActive = true;
       renderArticleArea();
+    };
+    el('btn-reading-mistakes').onclick = function () {
+      openMistakes();
     };
     el('btn-reading-regenerate').onclick = function () {
       state.article = null;
@@ -1315,8 +1416,31 @@
     engine: null,
     hintOn: true,
     activeKey: null,
+    session: null,   // 本次打字会话收集器 { startedAt, perKana }
+
+    startSession: function () {
+      this.session = { startedAt: Date.now(), perKana: {} };
+    },
+
+    // 累加一次按键结果：progress（完成假名）计 attempts+1；error 计 attempts+1 且 wrong+1
+    recordSession: function (char, ok) {
+      if (!this.session || !char) return;
+      var e = this.session.perKana[char];
+      if (!e) e = this.session.perKana[char] = { attempts: 0, wrong: 0 };
+      e.attempts++;
+      if (!ok) e.wrong++;
+    },
+
+    // 落盘并清空：saveTypingSession 内部会过滤空会话；清空后重复调用不会重复保存
+    flushSession: function () {
+      if (!this.session) return;
+      window.Storage.saveTypingSession(this.session);
+      this.session = null;
+    },
 
     start: function (article, parsed) {
+      this.flushSession();
+      this.startSession();
       this.engine = window.Typing.createEngine(article);
       this.render();
       // 绑定键盘
@@ -1332,11 +1456,16 @@
       el('reading-typing-wrap').focus();
     },
 
-    // 统一按键入口：按键结果同时写入错题本（错键 / 完成假名）
+    // 统一按键入口：按键结果同时写入错题本（错键 / 完成假名）与本次会话收集器
     press: function (key) {
       var result = this.engine.press(key);
-      if (result.type === 'progress') window.Storage.recordTypingKey(result.char, true);
-      else if (result.type === 'error') window.Storage.recordTypingKey(result.char, false);
+      if (result.type === 'progress') {
+        window.Storage.recordTypingKey(result.char, true);
+        this.recordSession(result.char, true);
+      } else if (result.type === 'error') {
+        window.Storage.recordTypingKey(result.char, false);
+        this.recordSession(result.char, false);
+      }
       return result;
     },
 
@@ -1464,6 +1593,7 @@
 
       // 事件
       el('btn-typing-back').onclick = function () {
+        TypingUI.flushSession();
         state.typingActive = false;
         TypingUI.engine = null;
         renderArticleArea();
@@ -1490,6 +1620,7 @@
     },
 
     showResult: function () {
+      this.flushSession();
       var res = this.engine.getResult();
       var wrap = el('reading-typing-wrap');
       if (!wrap) return;
@@ -1513,16 +1644,22 @@
           '</div>' +
         '</div>';
       el('btn-typing-retry').onclick = function () {
+        TypingUI.flushSession();
+        TypingUI.startSession();
         TypingUI.engine = window.Typing.createEngine(state.article);
         TypingUI.render();
       };
       el('btn-typing-back2').onclick = function () {
+        TypingUI.flushSession();
         state.typingActive = false;
         TypingUI.engine = null;
         renderArticleArea();
       };
     }
   };
+
+  // 页面隐藏/离开时落盘未完成的打字会话
+  window.addEventListener('pagehide', function () { TypingUI.flushSession(); });
 
   // ---------- 导出 ----------
   // 加载一篇文章（供精选文章/AI生成/测试复用）
@@ -1533,6 +1670,7 @@
     state.articleRes = res || null;
     state.parsed = window.Typing.parseText(text);
     state.typingActive = false;
+    state.mistakesActive = false;
     state.hideRomaji = false;
     state.annoMode = res ? 'sent' : 'off';
     renderArticleArea();
@@ -1545,6 +1683,7 @@
     loadArticle: loadArticle,
     reviewPoolSize: reviewPoolSize,
     startReview: startReview,
+    openMistakes: openMistakes,
     annotate: annotateWithKuroshiro,   // 供离线预生成脚本调用（强制走 kuroshiro，不查离线表）
     initKuroshiro: initKuroshiro
   };
