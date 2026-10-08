@@ -19,6 +19,13 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
+  // 每次假名进度写入记为一次学习，按日期累计到 stats.daily（供热力图使用）
+  function bumpDaily(data) {
+    if (!data.stats.daily) data.stats.daily = {};
+    var key = dateStr(new Date());
+    data.stats.daily[key] = (data.stats.daily[key] || 0) + 1;
+  }
+
   window.Storage = {
     // 读取全部数据，没有则返回初始结构
     load: function () {
@@ -50,6 +57,7 @@
       var data = this.load();
       var p = data.progress[hiragana] || Object.assign({}, DEFAULT_KANA);
       data.progress[hiragana] = Object.assign(p, updates);
+      bumpDaily(data);
       this.save(data);
     },
 
@@ -57,6 +65,13 @@
     getStats: function () {
       return this.load().stats;
     },
+
+    // 每日学习次数：{ 'YYYY-MM-DD': n }
+    getDailyCounts: function () {
+      return this.load().stats.daily || {};
+    },
+
+    dayKey: dateStr,
 
     // 合并更新统计数据
     updateStats: function (updates) {

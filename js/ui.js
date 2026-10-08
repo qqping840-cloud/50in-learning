@@ -227,6 +227,61 @@
     renderProgressOverview();
     renderTodayTasks();
     renderRowMap();
+    renderActivityHeatmap();
+  }
+
+  // 学习热力图：最近约一年，列为周（周日开头），行为星期
+  function heatLevel(n) {
+    if (!n) return 0;
+    if (n >= 7) return 4;
+    if (n >= 4) return 3;
+    if (n >= 2) return 2;
+    return 1;
+  }
+
+  function renderActivityHeatmap() {
+    var box = el('activity-heatmap');
+    if (!box) return;
+    var daily = Storage.getDailyCounts();
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    var start = new Date(today);
+    start.setDate(start.getDate() - 52 * 7 - start.getDay());
+
+    var cells = '', months = '', total = 0, activeDays = 0, lastMonth = -1, idx = 0;
+    for (var d = new Date(start); d <= today; d.setDate(d.getDate() + 1), idx++) {
+      var key = Storage.dayKey(d);
+      var n = daily[key] || 0;
+      total += n;
+      if (n) activeDays++;
+      var col = Math.floor(idx / 7);
+      if (d.getDay() === 0 && d.getMonth() !== lastMonth) {
+        lastMonth = d.getMonth();
+        months += '<span style="left:' + (col * 14) + 'px">' + (lastMonth + 1) + '月</span>';
+      }
+      cells += '<span class="hm-cell" data-level="' + heatLevel(n) + '" title="' + key + '：学习 ' + n + ' 次"></span>';
+    }
+
+    var weekdays = ['', '一', '', '三', '', '五', ''].map(function (w) {
+      return '<span>' + w + '</span>';
+    }).join('');
+    var legend = [0, 1, 2, 3, 4].map(function (lv) {
+      return '<span class="hm-cell" data-level="' + lv + '"></span>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="hm-head">' +
+        '<h2 class="section-title">学习热力图</h2>' +
+        '<span class="hm-summary">过去一年学习 ' + activeDays + ' 天，共 ' + total + ' 次</span>' +
+      '</div>' +
+      '<div class="hm-scroll">' +
+        '<div class="hm-months">' + months + '</div>' +
+        '<div class="hm-main">' +
+          '<div class="hm-weekdays">' + weekdays + '</div>' +
+          '<div class="hm-grid">' + cells + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="hm-legend"><span>少</span>' + legend + '<span>多</span></div>';
   }
 
   // 进度总览：大进度环 + 三个数字
