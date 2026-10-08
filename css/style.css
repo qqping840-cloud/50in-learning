@@ -2075,19 +2075,16 @@ button {
   max-width: 420px;
   margin: 0 auto;
   background-color: var(--color-bg);
-  /* 和纸纹理：极淡暖色横竖细纹（纯 CSS，无图片） */
-  background-image:
-    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.04) 0, rgba(120, 90, 50, 0.04) 1px, transparent 1px, transparent 4px),
-    repeating-linear-gradient(90deg, rgba(120, 90, 50, 0.025) 0, rgba(120, 90, 50, 0.025) 1px, transparent 1px, transparent 6px);
+  /* 和纸纤维：纯 CSS SVG 噪点（fractalNoise），透明度压到 0.04~0.08 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
   border-radius: var(--radius-md);
 }
 [data-theme="dark"] .mistakes-view {
   background-color: #201d1a; /* 回退：略暖深灰 */
   /* 暖纸深灰：用已有变量调出微暖，不引入新色系 */
   background-color: color-mix(in srgb, var(--color-accent-light) 16%, var(--color-bg));
-  background-image:
-    repeating-linear-gradient(0deg, rgba(255, 235, 210, 0.03) 0, rgba(255, 235, 210, 0.03) 1px, transparent 1px, transparent 4px),
-    repeating-linear-gradient(90deg, rgba(255, 235, 210, 0.02) 0, rgba(255, 235, 210, 0.02) 1px, transparent 1px, transparent 6px);
+  /* 深色纸纤维：同一套噪点，透明度略低 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
   box-shadow: none;
 }
 /* 深色下：标题/字符用正文色，强调只用答错色，去掉发光与阴影 */
@@ -2124,7 +2121,7 @@ button {
   left: 50%;
   writing-mode: vertical-rl;
   text-orientation: upright;
-  font-family: Georgia, 'Times New Roman', 'Songti SC', 'SimSun', serif;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
   font-weight: 800;
   color: var(--color-error);
   line-height: 1;
@@ -2140,28 +2137,39 @@ button {
   opacity: 0.85;
   transform: translate(-50%, -50%) translateX(13px);
 }
-.mistakes-head { font-size: 13px; color: var(--color-text-secondary); text-align: left; line-height: 1.7; font-family: Georgia, 'Songti SC', 'SimSun', serif; }
+.mistakes-head { font-size: 13px; color: var(--color-text-secondary); text-align: left; line-height: 1.7; font-family: "Songti SC", "STSong", "SimSun", serif; }
 .mistakes-empty { color: var(--color-text-secondary); padding: 24px 0; text-align: center; }
 .mistakes-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
 .mistakes-row { display: flex; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border); }
 .mistakes-rank { width: 18px; font-size: 12px; color: var(--color-text-secondary); }
 .mistakes-char { font-family: var(--font-kana); font-size: 30px; font-weight: 700; width: 44px; line-height: 1; }
-.mistakes-dots { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-/* 直径与偏移由 renderMistakes 内联给出（大小不一、位置小幅抖动，非等距排列） */
-.mistakes-dot { width: 3px; height: 3px; flex: 0 0 auto; border-radius: 50%; background: var(--color-error); opacity: 0.7; }
-/* +N 并入墨点列：栅格右对齐，前置细虚线引导 */
-.mistakes-more {
+/* 墨团：直径与透明度由 renderMistakes 内联给出（随次数增长） */
+.mistakes-blot {
+  flex: 0 0 auto;
+  background: var(--color-error);
+  /* 不规则手按印泥感 */
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+}
+/* 紧挨墨团的次数 */
+.mistakes-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-error);
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  white-space: nowrap;
+}
+/* 右侧错误率百分比 */
+.mistakes-rate {
   margin-left: auto;
-  padding-left: 8px;
-  border-left: 1px dashed var(--color-border);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 /* 按钮区上方的手写感注记：次要文字色 */
 .mistakes-note {
   margin-top: 14px;
-  font-family: Georgia, 'Songti SC', 'SimSun', serif;
-  font-style: italic;
+  font-family: "Songti SC", "STSong", "SimSun", serif;
   font-size: 12px;
   letter-spacing: .5px;
   color: var(--color-text-secondary);
@@ -2190,6 +2198,21 @@ button {
 }
 .mistakes-btn:active { transform: translateY(1px); }
 .mistakes-btn-primary { background: var(--color-error); color: var(--color-bg); }
+
+/* 页脚：细虚线分隔，左品牌右快照日期 */
+.mistakes-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-border);
+  font-family: "Songti SC", "STSong", "SimSun", serif;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  opacity: .85;
+}
 
 /* 阅读工具栏里的返回按钮：不占满剩余宽度 */
 #reading-toolbar .btn-back { flex: 0 0 auto; }

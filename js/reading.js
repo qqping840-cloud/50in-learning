@@ -331,51 +331,63 @@
     if (!isFinite(rate)) rate = 0;
     var pct = Math.max(0, Math.min(100, Math.round(rate * 100)));
     var rows = rank && rank.rows ? rank.rows : [];
-    // 墨点固定抖动表（大小 3-5px + 小幅偏移，写死不用随机，保证每次渲染一致）
-    var DOT_JITTER = [
-      { x: 0, y: 0, s: 3 }, { x: 1, y: -1, s: 4 }, { x: -1, y: 1, s: 3 },
-      { x: 2, y: 0, s: 5 }, { x: 0, y: 1, s: 3 }, { x: -2, y: -1, s: 4 },
-      { x: 1, y: 1, s: 3 }, { x: 2, y: -1, s: 4 }, { x: -1, y: 0, s: 5 },
-      { x: 0, y: -2, s: 3 }, { x: 1, y: 2, s: 4 }, { x: -2, y: 1, s: 3 },
-      { x: 2, y: 1, s: 4 }, { x: -1, y: -2, s: 3 }, { x: 0, y: 0, s: 5 }
-    ];
     var html = '<div class="mistakes-view">';
-    // 印章：SVG 圆角方框，边缘用 feTurbulence + feDisplacementMap 做轻微破损
+    // 印章：SVG 圆角方框，印面油墨不均（噪声 mask）+ 不规则断墨边
     html += '<div class="mistakes-stamp-row">';
     html += '<div class="mistakes-stamp" role="img" aria-label="整体错误率 ' + pct + '%">';
     html += '<svg class="mistakes-stamp-svg" viewBox="0 0 120 120" aria-hidden="true" focusable="false">' +
-      '<defs><filter id="stamp-rough" x="-30%" y="-30%" width="160%" height="160%">' +
-        '<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="11" result="noise"/>' +
-        '<feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>' +
-      '</filter></defs>' +
+      '<defs>' +
+        '<filter id="stamp-rough" x="-30%" y="-30%" width="160%" height="160%">' +
+          '<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="11" result="noise"/>' +
+          '<feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>' +
+        '</filter>' +
+        // 油墨不均：fractalNoise -> 灰度 -> 压对比到 0.5~1 -> 裁进印面形状，作 mask
+        '<filter id="stamp-ink" x="-5%" y="-5%" width="110%" height="110%">' +
+          '<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="7" result="grain"/>' +
+          '<feColorMatrix in="grain" type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" result="gray"/>' +
+          '<feComponentTransfer in="gray" result="soft">' +
+            '<feFuncR type="table" tableValues="0.5 1"/><feFuncG type="table" tableValues="0.5 1"/><feFuncB type="table" tableValues="0.5 1"/>' +
+          '</feComponentTransfer>' +
+          '<feComposite in="soft" in2="SourceGraphic" operator="in"/>' +
+        '</filter>' +
+        '<mask id="stamp-mask">' +
+          '<rect x="10" y="10" width="100" height="100" rx="14" fill="#fff" filter="url(#stamp-ink)"/>' +
+        '</mask>' +
+      '</defs>' +
       '<g filter="url(#stamp-rough)">' +
-        '<rect x="10" y="10" width="100" height="100" rx="14" fill="none" stroke="currentColor" stroke-width="5" stroke-dasharray="26 4 9 6 18 3" stroke-linecap="round"/>' +
-        '<rect x="12" y="12" width="96" height="96" rx="12" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" stroke-dasharray="14 7 5 9 20 4"/>' +
-        '<rect x="24" y="24" width="72" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.6" stroke-dasharray="10 5 3 8"/>' +
+        // 印面淡红底 + 颗粒（mask 造成深浅不均）
+        '<rect x="10" y="10" width="100" height="100" rx="14" fill="currentColor" opacity="0.14" mask="url(#stamp-mask)"/>' +
+        // 主框：不等长 dash 的断墨边，并叠油墨颗粒
+        '<rect x="10" y="10" width="100" height="100" rx="14" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="23 5 11 3 7 6 17 4 9 2 14 5" mask="url(#stamp-mask)"/>' +
+        '<rect x="15" y="15" width="90" height="90" rx="11" fill="none" stroke="currentColor" stroke-width="2" opacity="0.5" stroke-dasharray="12 6 4 9 19 3 8 7 15 4"/>' +
+        '<rect x="24" y="24" width="72" height="72" rx="8" fill="none" stroke="currentColor" stroke-width="2" opacity="0.55" stroke-dasharray="9 5 3 8 13 4"/>' +
       '</g>' +
     '</svg>';
     html += '<span class="mistakes-stamp-num">' + pct + '%</span>';
     html += '<span class="mistakes-stamp-label">错误率</span>';
     html += '</div>';
-    html += '<div class="mistakes-head">最近两次练习<br>统计于 ' + esc(rank && rank.day) + '</div>';
+    html += '<div class="mistakes-head">最近两次练习</div>';
     html += '</div>';
     if (!rows.length) {
       html += '<div class="mistakes-empty">还没有打字记录，先练一篇文章吧</div>';
     } else {
+      // 最大错误次数：用于墨团透明度的线性映射
+      var maxWrong = 0;
+      rows.forEach(function (r) { maxWrong = Math.max(maxWrong, Math.floor(Number(r.wrong) || 0)); });
       html += '<div class="mistakes-list">';
       rows.forEach(function (r, i) {
         var wrong = Math.max(0, Math.floor(Number(r.wrong) || 0));
-        var dots = Math.min(wrong, 15);
-        var dotHtml = '';
-        for (var d = 0; d < dots; d++) {
-          var j = DOT_JITTER[d % DOT_JITTER.length];
-          dotHtml += '<span class="mistakes-dot" style="width:' + j.s + 'px;height:' + j.s + 'px;transform:translate(' + j.x + 'px,' + j.y + 'px)"></span>';
-        }
-        if (wrong > 15) dotHtml += '<span class="mistakes-more">+' + (wrong - 15) + '</span>';
+        if (wrong === 0) return;   // 无错不显示
+        // 墨团：直径随次数增长（4~14px），透明度 0.6~1 随次数线性
+        var dia = Math.round(Math.min(14, 4 + wrong * 1.2));
+        var op = maxWrong > 0 ? 0.6 + 0.4 * (wrong / maxWrong) : 0.6;
+        var rate = Math.max(0, Math.min(100, Math.round((Number(r.rate) || 0) * 100)));
         html += '<div class="mistakes-row">' +
           '<span class="mistakes-rank">' + (i + 1) + '</span>' +
           '<span class="mistakes-char">' + esc(r.char) + '</span>' +
-          '<span class="mistakes-dots">' + dotHtml + '</span>' +
+          '<span class="mistakes-blot" style="width:' + dia + 'px;height:' + dia + 'px;opacity:' + op.toFixed(2) + '"></span>' +
+          '<span class="mistakes-count">' + wrong + ' 次</span>' +
+          '<span class="mistakes-rate">' + rate + '%</span>' +
         '</div>';
       });
       html += '</div>';
@@ -384,6 +396,10 @@
     html += '<div class="mistakes-actions">' +
       '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start">开始错题练习</button>' +
       '<button class="mistakes-btn mistakes-btn-ghost" id="btn-mistakes-back">返回文章</button>' +
+    '</div>';
+    html += '<div class="mistakes-footer">' +
+      '<span class="mistakes-footer-brand">50音学堂 · 错题账本</span>' +
+      '<span class="mistakes-footer-date">统计于 ' + esc(rank && rank.day) + '</span>' +
     '</div>';
     html += '</div>';
     wrap.innerHTML = html;
