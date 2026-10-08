@@ -228,12 +228,71 @@
     return null;
   }
 
+  // ---------- 错题复习出题 ----------
+  // 每个位置的来源比例：错题池 60% / 学过的假名 25% / 其他 15%
+  var REVIEW_MIX = { weak: 0.6, learned: 0.25 };
+  var REVIEW_GROUP_MIN = 3, REVIEW_GROUP_MAX = 5;
+
+  function pickWeighted(weights) {
+    var keys = Object.keys(weights);
+    var sum = 0;
+    keys.forEach(function (k) { sum += weights[k]; });
+    var r = Math.random() * sum;
+    for (var i = 0; i < keys.length; i++) {
+      r -= weights[keys[i]];
+      if (r < 0) return keys[i];
+    }
+    return keys[keys.length - 1];
+  }
+
+  function pickUniform(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
+  /**
+   * 生成错题复习的假名练习文本（纯假名，3~5 个一组用空格分隔）
+   * @param {Object} weights 错题池 { 假名: 权重 }，可为空对象
+   * @param {string[]} learned 已学过的假名
+   * @param {string[]} all 全部假名
+   * @param {number} total 假名个数
+   */
+  function buildReviewText(weights, learned, all, total) {
+    var hasWeak = Object.keys(weights).length > 0;
+    var learnedList = learned.length ? learned : all;
+    var seq = [], prev = null;
+    for (var i = 0; i < total; i++) {
+      var r = Math.random(), c = null;
+      // 尽量避免同一假名连续出现
+      for (var tries = 0; tries < 20; tries++) {
+        if (hasWeak && r < REVIEW_MIX.weak) c = pickWeighted(weights);
+        else if (r < REVIEW_MIX.weak + REVIEW_MIX.learned) c = pickUniform(learnedList);
+        else c = pickUniform(all);
+        if (c !== prev) break;
+        r = Math.random();
+      }
+      seq.push(c);
+      prev = c;
+    }
+    var out = '', count = 0, size = REVIEW_GROUP_MIN + Math.floor(Math.random() * (REVIEW_GROUP_MAX - REVIEW_GROUP_MIN + 1));
+    seq.forEach(function (c) {
+      out += c;
+      count++;
+      if (count === size) {
+        out += ' ';
+        count = 0;
+        size = REVIEW_GROUP_MIN + Math.floor(Math.random() * (REVIEW_GROUP_MAX - REVIEW_GROUP_MIN + 1));
+      }
+    });
+    return out.trim();
+  }
+
   // 导出
   window.Typing = {
     parseText: parseText,
     createEngine: createEngine,
     renderKeyboard: renderKeyboard,
     nextHintKey: nextHintKey,
+    buildReviewText: buildReviewText,
     KEYBOARD_ROWS: KEYBOARD_ROWS
   };
 

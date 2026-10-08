@@ -278,6 +278,7 @@
   // ---------- 渲染主入口 ----------
   function render() {
     loadConfig();
+    renderReview();
     renderLibrary();
     renderWordbookList();
     renderKeyConfig();
@@ -285,6 +286,40 @@
     renderArticleArea();
     renderWordbookView();
     bindGenerate();
+  }
+
+  // ---------- 错题复习入口 ----------
+  var REVIEW_MIN_SCORE = 1.5;   // 错题分 ≥ 1.5 才入池（即近期至少错两次）
+  var REVIEW_LENGTH = 60;       // 每次练习的假名个数
+
+  function renderReview() {
+    var box = el('reading-review');
+    if (!box) return;
+    var count = Object.keys(window.Storage.getWeakKana(REVIEW_MIN_SCORE)).length;
+    box.innerHTML =
+      '<div class="reading-review">' +
+        '<button class="btn btn-primary" id="btn-reading-review"' + (count ? '' : ' disabled') + '>错题复习</button>' +
+        '<span class="reading-key-hint">' +
+          (count ? '当前错题池 ' + count + ' 个假名' : '暂无错题，先去打字练习吧') +
+        '</span>' +
+      '</div>';
+    var btn = el('btn-reading-review');
+    if (btn && count) btn.onclick = startReview;
+  }
+
+  function startReview() {
+    var weights = window.Storage.getWeakKana(REVIEW_MIN_SCORE);
+    var all = window.KANA_DATA.map(function (k) { return k.hiragana; });
+    var learned = all.filter(function (c) { return window.Storage.getKana(c).box >= 1; });
+    var text = window.Typing.buildReviewText(weights, learned, all, REVIEW_LENGTH);
+    state.article = text;
+    state.articleIdx = null;
+    state.articleRes = null;
+    state.annoMode = 'off';
+    state.hideRomaji = false;
+    state.parsed = window.Typing.parseText(text);
+    state.typingActive = true;
+    renderArticleArea();
   }
 
   // ---------- 内置精选文章 ----------
@@ -1293,6 +1328,14 @@
       el('reading-typing-wrap').focus();
     },
 
+    // 统一按键入口：按键结果同时写入错题本（错键 / 完成假名）
+    press: function (key) {
+      var result = this.engine.press(key);
+      if (result.type === 'progress') window.Storage.recordTypingKey(result.char, true);
+      else if (result.type === 'error') window.Storage.recordTypingKey(result.char, false);
+      return result;
+    },
+
     handleKeyDown: function (e) {
       if (!TypingUI.engine) return;
       // 只处理字母键
@@ -1305,7 +1348,7 @@
       var keyEl = document.querySelector('#reading-typing-wrap .vkbd-key[data-key="' + lower + '"]');
       if (keyEl) keyEl.classList.add('pressed');
 
-      var result = TypingUI.engine.press(lower);
+      var result = TypingUI.press(lower);
       TypingUI.render();
       if (result.type === 'error') TypingUI.flashWrongKey(lower);
       if (result.type === 'progress') {
@@ -1431,7 +1474,7 @@
           var key = btn.getAttribute('data-key');
           TypingUI.activeKey = key;
           btn.classList.add('pressed');
-          var result = TypingUI.engine.press(key);
+          var result = TypingUI.press(key);
           TypingUI.render();
           if (result.type === 'error') TypingUI.flashWrongKey(key);
           setTimeout(function () { TypingUI.releaseKey(key); }, 150);

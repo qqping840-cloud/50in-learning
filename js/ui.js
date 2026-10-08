@@ -227,6 +227,7 @@
     renderProgressOverview();
     renderRowMap();
     renderActivityHeatmap();
+    updateStreakDisplay();
   }
 
   // 学习热力图：最近约一年，列为周（周日开头），行为星期

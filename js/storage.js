@@ -5,6 +5,9 @@
  */
 (function () {
   var KEY = 'kana-progress-v1';
+  var ERR_KEY = 'kana-typing-errors-v1';   // 打字错题本，独立存储，不走 bumpDaily
+  var DECAY = 0.8;                         // 错题分每过一天乘 0.8
+  var CLEAN_TO_CLEAR = 10;                 // 同一假名连续答对 10 次，错题分清零
 
   var DEFAULT_KANA = { box: 0, nextReview: null, correctStreak: 0, totalReviews: 0, lastResult: null, studyCount: 0 };
 
@@ -38,6 +41,19 @@
       d.setDate(d.getDate() - 1);
     }
     return n;
+  }
+
+  function dayDiff(from, to) {
+    return Math.round((new Date(to) - new Date(from)) / 86400000);
+  }
+
+  function loadErrors() {
+    try { return JSON.parse(localStorage.getItem(ERR_KEY)) || {}; } catch (e) { return {}; }
+  }
+
+  function decayedScore(e, today) {
+    if (!e || typeof e !== 'object' || !e.lastDay) return 0;
+    return (e.score || 0) * Math.pow(DECAY, Math.max(0, dayDiff(e.lastDay, today)));
   }
 
   window.Storage = {
@@ -101,9 +117,50 @@
       this.save(data);
     },
 
-    // 重置全部进度
+    // 记录一次打字按键结果：ok=true 为完成一个假名（计入每日学习），false 为错键
+    recordTypingKey: function (char, ok) {
+      var today = dateStr(new Date());
+      var errs = loadErrors();
+      var e = errs[char];
+      if (!e || typeof e !== 'object') e = { attempts: 0, wrong: 0, score: 0, cleanStreak: 0, lastDay: today };
+      e.score = decayedScore(e, today);
+      e.lastDay = today;
+      e.attempts++;
+      if (ok) {
+        e.cleanStreak++;
+        if (e.cleanStreak >= CLEAN_TO_CLEAR) e.score = 0;
+      } else {
+        e.wrong++;
+        e.score += 1;
+        e.cleanStreak = 0;
+      }
+      errs[char] = e;
+      localStorage.setItem(ERR_KEY, JSON.stringify(errs));
+      if (ok) {
+        var data = this.load();
+        bumpDaily(data);
+        this.save(data);
+      }
+    },
+
+    // 当前错题分（已按天衰减）>= minScore 的假名：{ 假名: 分数 }
+    getWeakKana: function (minScore) {
+      var errs = loadErrors(), today = dateStr(new Date()), out = {};
+      Object.keys(errs).forEach(function (c) {
+        var s = decayedScore(errs[c], today);
+        if (s >= minScore) out[c] = s;
+      });
+      return out;
+    },
+
+    clearTypingErrors: function () {
+      localStorage.removeItem(ERR_KEY);
+    },
+
+    // 重置全部进度（含错题本）
     reset: function () {
       localStorage.removeItem(KEY);
+      localStorage.removeItem(ERR_KEY);
     }
   };
 })();
