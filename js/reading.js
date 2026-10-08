@@ -1309,6 +1309,7 @@
 
       var result = TypingUI.engine.press(lower);
       TypingUI.render();
+      if (result.type === 'error') TypingUI.flashWrongKey(lower);
       if (result.type === 'progress') {
         if (window.UI && window.UI.speak) window.UI.speak(result.char);
       }
@@ -1324,6 +1325,14 @@
 
     // 平移距离（px）：已完成 token 的累积宽度，用于 translateX
     shiftPx: 0,
+
+    // 错键：虚拟键盘对应键短暂闪红（render 会重建键盘，所以在 render 之后调用）
+    flashWrongKey: function (key) {
+      var keyEl = document.querySelector('#reading-typing-wrap .vkbd-key[data-key="' + key + '"]');
+      if (!keyEl) return;
+      keyEl.classList.add('wrong');
+      setTimeout(function () { keyEl.classList.remove('wrong'); }, 400);
+    },
 
     // 滚动到当前假名（居中）——用 translateX 平移整行，保证滚动稳定
     scrollToCurrent: function () {
@@ -1419,6 +1428,7 @@
           btn.classList.add('pressed');
           var result = TypingUI.engine.press(key);
           TypingUI.render();
+          if (result.type === 'error') TypingUI.flashWrongKey(key);
           if (result.type === 'progress' && window.UI) window.UI.speak(result.char);
           if ((result.type === 'progress' && result.pos >= result.total) || result.type === 'complete') TypingUI.showResult();
         };

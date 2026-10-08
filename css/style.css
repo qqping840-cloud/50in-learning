@@ -1319,6 +1319,12 @@ button {
   box-shadow: 0 2px 0 var(--color-primary-dark);
 }
 
+.vkbd-key.wrong {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+}
+
 .vkbd-key.hint {
   border-color: var(--color-primary);
   color: var(--color-primary);
