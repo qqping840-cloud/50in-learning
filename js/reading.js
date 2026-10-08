@@ -1284,10 +1284,8 @@
       if (!this._bound) {
         this._bound = true;
         document.addEventListener('keydown', this.handleKeyDown.bind(this));
-        document.addEventListener('keyup', function () {
-          TypingUI.activeKey = null;
-          var el2 = document.querySelector('#reading-typing-wrap .vkbd-key.pressed');
-          if (el2) el2.classList.remove('pressed');
+        document.addEventListener('keyup', function (e) {
+          TypingUI.releaseKey(e.key ? e.key.toLowerCase() : '');
         });
       }
       // 聚焦页面接收键盘
@@ -1325,6 +1323,13 @@
 
     // 平移距离（px）：已完成 token 的累积宽度，用于 translateX
     shiftPx: 0,
+
+    // 松开按键：只释放同一个键，避免快速连按时误清掉后按的键
+    releaseKey: function (key) {
+      if (this.activeKey === key) this.activeKey = null;
+      var keyEl = document.querySelector('#reading-typing-wrap .vkbd-key[data-key="' + key + '"]');
+      if (keyEl) keyEl.classList.remove('pressed');
+    },
 
     // 错键：虚拟键盘对应键短暂闪红（render 会重建键盘，所以在 render 之后调用）
     flashWrongKey: function (key) {
@@ -1429,6 +1434,7 @@
           var result = TypingUI.engine.press(key);
           TypingUI.render();
           if (result.type === 'error') TypingUI.flashWrongKey(key);
+          setTimeout(function () { TypingUI.releaseKey(key); }, 150);
           if (result.type === 'progress' && window.UI) window.UI.speak(result.char);
           if ((result.type === 'progress' && result.pos >= result.total) || result.type === 'complete') TypingUI.showResult();
         };
