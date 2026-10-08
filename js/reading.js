@@ -278,7 +278,6 @@
   // ---------- 渲染主入口 ----------
   function render() {
     loadConfig();
-    renderReview();
     renderLibrary();
     renderWordbookList();
     renderKeyConfig();
@@ -288,23 +287,12 @@
     bindGenerate();
   }
 
-  // ---------- 错题复习入口 ----------
+  // ---------- 错题复习（入口在练习页，由 ui.js 渲染） ----------
   var REVIEW_MIN_SCORE = 1.5;   // 错题分 ≥ 1.5 才入池（即近期至少错两次）
   var REVIEW_LENGTH = 60;       // 每次练习的假名个数
 
-  function renderReview() {
-    var box = el('reading-review');
-    if (!box) return;
-    var count = Object.keys(window.Storage.getWeakKana(REVIEW_MIN_SCORE)).length;
-    box.innerHTML =
-      '<div class="reading-review">' +
-        '<button class="btn btn-primary" id="btn-reading-review"' + (count ? '' : ' disabled') + '>错题复习</button>' +
-        '<span class="reading-key-hint">' +
-          (count ? '当前错题池 ' + count + ' 个假名' : '暂无错题，先去打字练习吧') +
-        '</span>' +
-      '</div>';
-    var btn = el('btn-reading-review');
-    if (btn && count) btn.onclick = startReview;
+  function reviewPoolSize() {
+    return Object.keys(window.Storage.getWeakKana(REVIEW_MIN_SCORE)).length;
   }
 
   function startReview() {
@@ -811,6 +799,14 @@
     var wrap = el('reading-typing-wrap');
     if (!view || !wrap) return;
 
+    // 打开文章时收起列表，文章独占页面并回到顶部
+    var setup = el('reading-setup');
+    if (setup) {
+      var wasOpen = setup.style.display === 'none';
+      setup.style.display = state.article ? 'none' : '';
+      if (state.article && !wasOpen) window.scrollTo(0, 0);
+    }
+
     if (!state.article) {
       view.style.display = 'none';
       wrap.style.display = 'none';
@@ -838,12 +834,20 @@
     var bar = el('reading-toolbar');
     if (!bar) return;
     bar.innerHTML =
+      '<button class="btn btn-secondary btn-back" id="btn-reading-back">返回列表</button>' +
       (state.articleIdx != null ? '<button class="btn btn-primary" id="btn-reading-read">朗读全文</button>' : '') +
       '<button class="btn btn-secondary" id="btn-reading-hide">' + (state.hideRomaji ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<button class="btn btn-primary" id="btn-reading-typing">打字练习</button>' +
       '<button class="btn btn-secondary" id="btn-reading-regenerate">重新生成</button>';
 
     bindReadAloud();
+    el('btn-reading-back').onclick = function () {
+      stopReadAloud();
+      state.article = null;
+      state.typingActive = false;
+      TypingUI.engine = null;
+      renderArticleArea();
+    };
     el('btn-reading-hide').onclick = function () {
       state.hideRomaji = !state.hideRomaji;
       renderArticle();
@@ -1539,6 +1543,8 @@
     render: render,
     generate: generateArticle,
     loadArticle: loadArticle,
+    reviewPoolSize: reviewPoolSize,
+    startReview: startReview,
     annotate: annotateWithKuroshiro,   // 供离线预生成脚本调用（强制走 kuroshiro，不查离线表）
     initKuroshiro: initKuroshiro
   };

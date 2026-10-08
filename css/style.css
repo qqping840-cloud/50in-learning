@@ -2068,3 +2068,30 @@ button {
 
 /* 纯 CSS 控制显示：悬停词即出气泡（无需 JS 绑事件） */
 .anno-word:hover > .anno-tip { display: block; }
+
+/* 练习页：打字错题复习入口（次要卡片，不抢主练习的注意力） */
+.practice-review {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 18px;
+}
+
+.practice-review-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.practice-review-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* 阅读工具栏里的返回按钮：不占满剩余宽度 */
+#reading-toolbar .btn-back { flex: 0 0 auto; }

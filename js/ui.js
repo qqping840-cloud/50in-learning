@@ -462,6 +462,30 @@
     return item;
   }
 
+  // 练习页底部：打字错题复习入口，点击后进入阅读页的打字模式
+  function renderPracticeReview() {
+    var box = el('practice-review');
+    if (!box || !window.Reading) return;
+    var count = window.Reading.reviewPoolSize();
+    box.innerHTML =
+      '<div class="practice-review">' +
+        '<div class="practice-review-text">' +
+          '<div class="practice-review-title">打字错题复习</div>' +
+          '<div class="practice-review-hint">' +
+            (count ? '当前错题池 ' + count + ' 个假名' : '暂无错题，先去阅读页的打字练习吧') +
+          '</div>' +
+        '</div>' +
+        '<button class="btn btn-secondary" id="btn-practice-review"' + (count ? '' : ' disabled') + '>开始</button>' +
+      '</div>';
+    var btn = el('btn-practice-review');
+    if (btn && count) {
+      btn.onclick = function () {
+        App.navigate('reading');
+        window.Reading.startReview();
+      };
+    }
+  }
+
   function renderPractice() {
     var modeSwitch = el('practice-mode-switch');
     var card = el('flashcard');
@@ -1030,6 +1054,7 @@
     renderLearn: renderLearn,
     renderChart: renderChart,
     renderPractice: renderPractice,
+    renderPracticeReview: renderPracticeReview,
     renderQuiz: renderQuiz,
     renderReading: function () { if (window.Reading) window.Reading.render(); },
     speak: speak,

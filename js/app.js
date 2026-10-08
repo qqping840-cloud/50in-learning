@@ -10,7 +10,7 @@
     home: function () { UI.renderHome(); },
     learn: function () { UI.renderLearn(); },
     chart: function () { UI.renderChart(); },
-    practice: function () { UI.renderPractice(); },
+    practice: function () { UI.renderPractice(); UI.renderPracticeReview(); },
     quiz: function () { UI.renderQuiz(); },
     reading: function () { UI.renderReading(); }
   };
