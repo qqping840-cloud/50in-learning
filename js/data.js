@@ -1,7 +1,8 @@
 /**
  * 日语50音数据文件
  * 共 104 个假名：清音 46 + 浊音 20 + 半浊音 5 + 拗音 33
- * 罗马音采用 Hepburn 式（し=shi, ち=chi, つ=tsu, ふ=fu, じ=ji, ぢ=ji, づ=zu, を=o）
+ * 罗马音采用 Hepburn 式（し=shi, ち=chi, つ=tsu, ふ=fu, じ=ji, ぢ=ji, づ=zu）
+ * 例外：を 写作 wo（五十音表惯例，与 お=o 区分；打字时 o / wo 均可输入）
  * 无任何外部依赖，直接在浏览器中引入即可使用
  */
 
@@ -63,7 +64,7 @@ window.KANA_DATA = [
   { hiragana: 'ろ', katakana: 'ロ', romaji: 'ro',  row: 'ra', type: 'seion' },
 
   { hiragana: 'わ', katakana: 'ワ', romaji: 'wa',  row: 'wa', type: 'seion' },
-  { hiragana: 'を', katakana: 'ヲ', romaji: 'o',   row: 'wa', type: 'seion' },
+  { hiragana: 'を', katakana: 'ヲ', romaji: 'wo',  row: 'wa', type: 'seion' },
 
   { hiragana: 'ん', katakana: 'ン', romaji: 'n',   row: 'n',  type: 'seion' },
 
