@@ -280,6 +280,209 @@
     return out.trim();
   }
 
+  // ---------- 易混假名练习出题 ----------
+  // 依据：最小对比串（minimal pair）辨别训练 + 交错排列（interleaving）。
+  // 把形状相近 / 罗马音易错的假名相邻排布，逼学习者逐字辨别，而非靠上下文猜。
+  var CONFUSABLE_GROUPS = [
+    ['わ','ね','れ'], ['ぬ','め','あ'], ['る','ろ','そ'], ['は','ほ'],
+    ['け','は'], ['い','り'], ['さ','き'], ['さ','ち'], ['し','つ'],
+    ['し','も'], ['ま','も'], ['ま','よ'], ['こ','に'], ['た','に'],
+    ['う','つ'], ['ち','ら'], ['す','む'], ['の','め'], ['や','か'], ['あ','お']
+  ];
+
+  // 罗马音易错字：含这些字的组被抽中概率更高（组权重 = 1 + 组内易错字数）
+  var PITFALL = { 'し': 1, 'ち': 1, 'つ': 1, 'ふ': 1 };
+
+  // Fisher–Yates 洗牌（返回新数组，不改原数组）
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // 各易混组的权重表（下标字符串 -> 权重），复用 pickWeighted
+  function groupWeights() {
+    var w = {};
+    for (var i = 0; i < CONFUSABLE_GROUPS.length; i++) {
+      var weight = 1;
+      CONFUSABLE_GROUPS[i].forEach(function (c) { if (PITFALL[c]) weight++; });
+      w[i] = weight;
+    }
+    return w;
+  }
+
+  function distinctCount(s) {
+    var set = {};
+    for (var i = 0; i < s.length; i++) set[s[i]] = 1;
+    return Object.keys(set).length;
+  }
+
+  // 单元内某字符的最大出现次数（用于判断能否排成「无相邻同字」）
+  function maxCharCount(s) {
+    var counts = {}, max = 0;
+    for (var i = 0; i < s.length; i++) {
+      counts[s[i]] = (counts[s[i]] || 0) + 1;
+      if (counts[s[i]] > max) max = counts[s[i]];
+    }
+    return max;
+  }
+
+  // 生成一个易混串：按权重抽组，从该组取字符拼成长度 len；组内允许重复，
+  // 但至少出现 2 个不同字符，且最多次数不超过 ceil(len/2)
+  // （否则无论怎么排都会出现相邻同字，破坏单元结构）。重试若干次取不到就接受。
+  function buildConfusionUnit(len, weights) {
+    var group = CONFUSABLE_GROUPS[parseInt(pickWeighted(weights), 10)] || CONFUSABLE_GROUPS[0];
+    for (var attempt = 0; attempt < 10; attempt++) {
+      var s = '';
+      for (var k = 0; k < len; k++) {
+        s += group[Math.floor(Math.random() * group.length)];
+      }
+      if (group.length < 2 || (distinctCount(s) >= 2 && maxCharCount(s) <= Math.ceil(len / 2))) return s;
+    }
+    // 兜底：交替取组内前两个字符拼满（该排法必然可排成无相邻同字）
+    var a = group[0], b = group.length > 1 ? group[1] : group[0];
+    var out = '';
+    for (var m = 0; m < len; m++) out += (m % 2 === 0 ? a : b);
+    return out;
+  }
+
+  /**
+   * 生成易混假名练习文本（纯假名，3~5 个一组用空格分隔，无实义）
+   * 两段：① 覆盖段 —— allKana 每个假名各出现一次（单字单元）；
+   *       ② 易混段 —— 按组权重抽相似假名组成 3~5 字串（最小对比串）。
+   * 两段单元整体洗牌后，先在「单元层面」消除相邻同字（不跨单元搬字符），
+   * 再展平并按 3~5 个一组加空格（与 buildReviewText 一致）。
+   * @param {Array<string>} allKana 清音假名数组
+   * @param {number} total 总假名个数
+   */
+  function buildConfusionDrill(allKana, total) {
+    if (!allKana || !allKana.length) return '';
+    total = Math.floor(total);
+    if (!isFinite(total) || total < 0) total = allKana.length; // Infinity/NaN/负数回退为只出覆盖段
+    // 覆盖段：每个假名各一次，作为单字单元
+    var units = shuffle(allKana).map(function (c) { return [c]; });
+    if (total < allKana.length) {
+      // 总数不足覆盖段：只取 total 个单字单元
+      units = units.slice(0, total);
+    } else {
+      // 易混段：按权重抽组拼串，直到凑满剩余数量
+      var weights = groupWeights();
+      var remaining = total - allKana.length;
+      while (remaining > 0) {
+        var len = REVIEW_GROUP_MIN + Math.floor(Math.random() * (REVIEW_GROUP_MAX - REVIEW_GROUP_MIN + 1)); // 3~5
+        if (len > remaining) len = remaining; // 单元长度不得超过剩余
+        units.push(buildConfusionUnit(len, weights).split(''));
+        remaining -= len;
+      }
+      units = shuffle(units);
+    }
+    // 单元内排序：贪心选「与上一个不同、剩余出现次数最多」的字，避免单元内相邻同字。
+    // avoidHead 非空时，首字尽量不等于 avoidHead（跨单元拼接时使用）；
+    // 只剩与上一个相同的字时只能接受。
+    function arrangeUnit(chars, avoidHead) {
+      var counts = {};
+      for (var ci = 0; ci < chars.length; ci++) counts[chars[ci]] = (counts[chars[ci]] || 0) + 1;
+      var out = [], prev = avoidHead;
+      for (var n = 0; n < chars.length; n++) {
+        var best = null, bestCount = -1;
+        for (var key in counts) {
+          if (counts[key] <= 0 || key === prev) continue;
+          if (counts[key] > bestCount) { best = key; bestCount = counts[key]; }
+        }
+        if (best === null) { // 没有与 prev 不同的字，只能取剩余任意字
+          for (var key2 in counts) { if (counts[key2] > 0) { best = key2; break; } }
+        }
+        if (best === null) break;
+        out.push(best); counts[best]--; prev = best;
+      }
+      return out;
+    }
+    units = units.map(function (u) { return arrangeUnit(u, null); });
+    // 逐单元拼接：若当前单元首字等于上一单元末字，就把当前单元与后面某个
+    // 「首字不等于上一末字」的单元整体交换（整单元交换，不搬单个字符）；
+    // 交换不到再用带上一个末字约束重排；仍不行则接受（交给最后兜底）。
+    for (var ui = 1; ui < units.length; ui++) {
+      var prevLast = units[ui - 1][units[ui - 1].length - 1];
+      if (units[ui].length && units[ui][0] === prevLast) {
+        var swapped = false;
+        for (var uj = ui + 1; uj < units.length; uj++) {
+          if (units[uj].length && units[uj][0] !== prevLast) {
+            var tmpU = units[ui]; units[ui] = units[uj]; units[uj] = tmpU;
+            swapped = true; break;
+          }
+        }
+        if (!swapped) units[ui] = arrangeUnit(units[ui], prevLast);
+      }
+    }
+    // 展平
+    var seq = [];
+    units.forEach(function (u) { seq = seq.concat(u); });
+    function hasAdjacentDup(s) {
+      for (var di = 1; di < s.length; di++) if (s[di] === s[di - 1]) return true;
+      return false;
+    }
+    // 最后兜底：单元处理后若仍有相邻同字，才启用扁平交换。
+    // 其他情况跳过，避免把字搬出原单元、破坏「相似字相邻」的单元结构。
+    // 优先换成与前一假名同属易混组的字，并就近交换，尽量保留「相似字相邻」的训练强度。
+    function inSameGroup(a, b) {
+      for (var gi = 0; gi < CONFUSABLE_GROUPS.length; gi++) {
+        var g = CONFUSABLE_GROUPS[gi];
+        if (g.indexOf(a) !== -1 && g.indexOf(b) !== -1) return true;
+      }
+      return false;
+    }
+    // 试交换 seq[i] 与 seq[j]，检查交换后 i、j 两处附近不会出现同字连排
+    function swapKeepsClean(s, i, j) {
+      var t = s[i]; s[i] = s[j]; s[j] = t;
+      var good = true;
+      if (i > 0 && s[i] === s[i - 1]) good = false;
+      if (i + 1 < s.length && s[i] === s[i + 1]) good = false;
+      if (j > 0 && s[j] === s[j - 1]) good = false;
+      if (j + 1 < s.length && s[j] === s[j + 1]) good = false;
+      t = s[i]; s[i] = s[j]; s[j] = t; // 还原
+      return good;
+    }
+    if (hasAdjacentDup(seq)) {
+      for (var guard = 0; guard < seq.length + 1; guard++) {
+        var changed = false;
+        for (var i = 1; i < seq.length; i++) {
+          if (seq[i] !== seq[i - 1]) continue;
+          var pick = -1, pickDist = seq.length + 1, pickSameGroup = false;
+          for (var j = 0; j < seq.length; j++) {
+            if (j === i || seq[j] === seq[i - 1]) continue;
+            if (!swapKeepsClean(seq, i, j)) continue;
+            var grp = inSameGroup(seq[j], seq[i - 1]); // 换来的字与前一假名同易混组则更优
+            var dist = j > i ? j - i : i - j;
+            if ((grp && !pickSameGroup) || (grp === pickSameGroup && dist < pickDist)) {
+              pick = j; pickDist = dist; pickSameGroup = grp;
+            }
+          }
+          if (pick !== -1) {
+            var tmp = seq[i]; seq[i] = seq[pick]; seq[pick] = tmp;
+            changed = true;
+          }
+        }
+        if (!changed) break; // 已无同字连排，提前结束
+      }
+    }
+    // 按 3~5 个一组加空格
+    var out = '', count = 0;
+    var size = REVIEW_GROUP_MIN + Math.floor(Math.random() * (REVIEW_GROUP_MAX - REVIEW_GROUP_MIN + 1));
+    seq.forEach(function (c) {
+      out += c;
+      count++;
+      if (count === size) {
+        out += ' ';
+        count = 0;
+        size = REVIEW_GROUP_MIN + Math.floor(Math.random() * (REVIEW_GROUP_MAX - REVIEW_GROUP_MIN + 1));
+      }
+    });
+    return out.trim();
+  }
+
   // 导出
   window.Typing = {
     parseText: parseText,
@@ -287,6 +490,8 @@
     renderKeyboard: renderKeyboard,
     nextHintKey: nextHintKey,
     buildReviewText: buildReviewText,
+    buildConfusionDrill: buildConfusionDrill,
+    CONFUSABLE_GROUPS: CONFUSABLE_GROUPS,
     KEYBOARD_ROWS: KEYBOARD_ROWS
   };
 

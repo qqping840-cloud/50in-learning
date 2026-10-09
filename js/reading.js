@@ -318,6 +318,26 @@
     renderArticleArea();
   }
 
+  // ---------- 易混假名练习（覆盖全部 46 清音，易混项占大头） ----------
+  var CONFUSION_LENGTH = 120;
+
+  function startConfusionDrill() {
+    var list = (window.KANA_DATA || []).filter(function (k) {
+      return k.type === 'seion';
+    }).map(function (k) { return k.hiragana; });
+    var text = window.Typing.buildConfusionDrill(list, CONFUSION_LENGTH);
+    if (!text) return;
+    state.mistakesActive = false;
+    state.article = text;
+    state.articleIdx = null;
+    state.articleRes = null;
+    state.annoMode = 'off';
+    state.hideRomaji = false;
+    state.parsed = window.Typing.parseText(text);
+    state.typingActive = true;
+    renderArticleArea();
+  }
+
   // 打开错题仪表盘：收起文章视图，占用打字区
   function openMistakes() {
     if (!state.article) return;
@@ -929,6 +949,7 @@
       (state.articleIdx != null ? '<button class="btn btn-primary" id="btn-reading-read">朗读全文</button>' : '') +
       '<button class="btn btn-secondary" id="btn-reading-hide">' + (state.hideRomaji ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<button class="btn btn-primary" id="btn-reading-typing">打字练习</button>' +
+      '<button class="btn btn-secondary" id="btn-reading-confusion">易混练习</button>' +
       '<button class="btn btn-secondary" id="btn-reading-mistakes">错题练习</button>' +
       '<button class="btn btn-secondary" id="btn-reading-regenerate">重新生成</button>';
 
@@ -949,6 +970,9 @@
     el('btn-reading-typing').onclick = function () {
       state.typingActive = true;
       renderArticleArea();
+    };
+    el('btn-reading-confusion').onclick = function () {
+      startConfusionDrill();
     };
     el('btn-reading-mistakes').onclick = function () {
       openMistakes();
@@ -1678,6 +1702,7 @@
     loadArticle: loadArticle,
     reviewPoolSize: reviewPoolSize,
     startReview: startReview,
+    startConfusionDrill: startConfusionDrill,
     openMistakes: openMistakes,
     annotate: annotateWithKuroshiro,   // 供离线预生成脚本调用（强制走 kuroshiro，不查离线表）
     initKuroshiro: initKuroshiro
