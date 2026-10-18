@@ -18,7 +18,7 @@ start.bat            # 等价于 node server.js
 |---|---|
 | 首页 / 音表 / 学习 / 练习 / 测验 | 五十音与单词练习、复习 |
 | 单词 | N5 词库（来源与许可见 `THIRD_PARTY.md`） |
-| 阅读 | 文章注音、逐句译文、点词发音、逐句点读 |
+| 阅读 | 文章注音、逐句译文、点词发音、逐句点读（截整篇音频，Nanami，可离线） |
 | 视频 | 左侧原视频 + 右侧日语/译文字幕 |
 
 ## 视频页
@@ -93,6 +93,7 @@ transcribe --retext "名.srt" --text "名.zh.txt"
 | `tools/edge_endpoint.py` | edge-tts 端点补丁 + 重试（2026-10 起旧端点被封，403） |
 | `tools/import_n5_wordbook.js` | 导入 N5 词库 |
 | `tools/bake_offline.js` | 离线预生成注音与朗读时间戳（让双击 `index.html` 也能用） |
+| `tools/bake_offline_tts.js` | 只刷新离线朗读时间戳（重跑 `gen_tts.py` 后必跑，否则 file:// 下高亮/逐句点读会对不上音频） |
 | `tools/test_video_study.js` | 视频页字幕解析的自检 |
 
 自检：

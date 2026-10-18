@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="C 盘清理候选逐项判断与 JSON 导出工具">
+  <title>C 盘清理选择器</title>
+  <style>
+    :root {
+      --paper: #f7f5ef;
+      --surface: #fffdf8;
+      --ink: #202521;
+      --muted: #6b726b;
+      --line: #d8ddd4;
+      --sage: #356b5a;
+      --sage-soft: #e4efe9;
+      --amber: #a15e20;
+      --amber-soft: #fbeddc;
+      --blue: #365d79;
+      --blue-soft: #e5eef5;
+      --shadow: 0 14px 34px rgba(41, 49, 43, .08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 3px solid rgba(54, 93, 121, .34);
+      outline-offset: 2px;
+    }
+
+    .wrap { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+    .hero { padding: 54px 0 30px; }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--sage);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      max-width: 760px;
+      margin-bottom: 14px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.3rem, 6vw, 4.7rem);
+      font-weight: 600;
+      letter-spacing: -.045em;
+      line-height: 1.03;
+    }
+    .lede { max-width: 720px; margin-bottom: 26px; color: var(--muted); font-size: 1.05rem; }
+    .notice {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      max-width: 800px;
+      padding: 14px 16px;
+      border: 1px solid #e5caa9;
+      border-left: 4px solid var(--amber);
+      border-radius: 12px;
+      background: var(--amber-soft);
+      color: #70421e;
+    }
+    .notice strong { display: block; margin-bottom: 2px; color: #633617; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 22px 0 34px; }
+    .stat { padding: 17px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .stat-label { color: var(--muted); font-size: .82rem; }
+    .stat-value { margin-top: 3px; font-size: 1.35rem; font-weight: 750; }
+    .stat-value.sage { color: var(--sage); }
+    .stat-value.amber { color: var(--amber); }
+
+    .section { margin: 38px 0; }
+    .section-head { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 14px; }
+    .section-kicker { margin-bottom: 5px; color: var(--muted); font-size: .82rem; font-weight: 700; letter-spacing: .08em; }
+    h2 { margin-bottom: 0; font-size: 1.55rem; letter-spacing: -.02em; }
+    .section-intro { max-width: 720px; margin-bottom: 18px; color: var(--muted); }
+    .section-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: .88rem;
+      font-weight: 700;
+    }
+    .btn:hover { border-color: var(--sage); color: var(--sage); }
+    .btn.primary { border-color: var(--sage); background: var(--sage); color: #fff; }
+    .btn.primary:hover { background: #2c594b; }
+    .btn.quiet { background: transparent; }
+
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .card.selected { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(53, 107, 90, .09); }
+    .card-top { display: flex; gap: 12px; align-items: flex-start; }
+    .check { width: 20px; height: 20px; margin-top: 3px; accent-color: var(--sage); flex: 0 0 auto; }
+    .card-main { min-width: 0; flex: 1; }
+    .card-title-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    h3 { margin-bottom: 3px; font-size: 1.05rem; line-height: 1.35; }
+    .size { color: var(--sage); font-weight: 800; white-space: nowrap; }
+    .tag {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue);
+      font-size: .72rem;
+      font-weight: 800;
+    }
+    .tag.warn { background: var(--amber-soft); color: var(--amber); }
+    .summary { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+    .impact {
+      margin: 15px 0 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #f1f4ef;
+      color: #455249;
+      font-size: .86rem;
+    }
+    .impact strong { color: var(--ink); }
+    details { margin-top: auto; padding-top: 14px; }
+    summary { color: var(--sage); cursor: pointer; font-size: .86rem; font-weight: 800; }
+    .details-body { display: grid; gap: 7px; margin-top: 10px; color: var(--muted); font-size: .84rem; }
+    .details-body strong { color: var(--ink); }
+    code.path { overflow-wrap: anywhere; color: #53625b; font-family: Consolas, monospace; font-size: .78rem; }
+    .plain-card { border-left: 4px solid var(--blue); }
+    .plain-card .impact { background: var(--blue-soft); }
+    .empty { padding: 24px; border: 1px dashed var(--line); border-radius: var(--radius); color: var(--muted); text-align: center; }
+
+    .footer-space { height: 112px; }
+    .selection-bar {
+      position: fixed;
+      z-index: 5;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      border-top: 1px solid var(--line);
+      background: rgba(255, 253, 248, .96);
+      box-shadow: 0 -10px 30px rgba(41, 49, 43, .08);
+      backdrop-filter: blur(10px);
+    }
+    .bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 82px; }
+    .selection-number { font-size: 1.03rem; font-weight: 800; }
+    .selection-number span { color: var(--sage); }
+    .selection-meta { color: var(--muted); font-size: .83rem; }
+    .bar-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    #status { min-height: 1.4em; margin: 0; color: var(--sage); font-size: .82rem; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 760px) {
+      .wrap { width: min(100% - 22px, 620px); }
+      .hero { padding-top: 34px; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .grid { grid-template-columns: 1fr; }
+      .section-head { display: block; }
+      .section-actions { justify-content: flex-start; margin-top: 12px; }
+      .bar-inner { display: block; padding: 12px 0; }
+      .bar-actions { justify-content: flex-start; margin-top: 8px; }
+      .footer-space { height: 170px; }
+    }
+    @media (max-width: 380px) {
+      h1 { font-size: 2.35rem; }
+      .stats { gap: 8px; }
+      .stat { padding: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero wrap">
+    <p class="eyebrow">Offline decision sheet · 2026-10-11</p>
+    <h1>C 盘，哪些东西真的可以动？</h1>
+    <p class="lede">这是一张逐项确认单。已经把“看不出用途”的开发工具、模型、系统组件和专业软件翻译成了人话；你只需要勾选想处理的项目，最后导出 JSON 发回给我。</p>
+    <div class="notice" role="note">
+      <div aria-hidden="true">!</div>
+      <div><strong>本页面只记录选择，不会清理文件。</strong> 不读取 C 盘、不联网、不执行卸载。勾选前优先看每项的“删掉会怎样”和“如何恢复”。</div>
+    </div>
+    <div class="stats" aria-label="C 盘检查摘要">
+      <div class="stat"><div class="stat-label">C 盘总量</div><div class="stat-value">221.8 GB</div></div>
+      <div class="stat"><div class="stat-label">已使用</div><div class="stat-value amber">184.5 GB</div></div>
+      <div class="stat"><div class="stat-label">剩余空间</div><div class="stat-value sage">37.3 GB</div></div>
+      <div class="stat"><div class="stat-label">可重建缓存参考</div><div class="stat-value">约 10.0 GB</div></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="section" aria-labelledby="direct-title">
+      <div class="section-head">
+        <div><div class="section-kicker">01 / LOW RISK</div><h2 id="direct-title">基本可以清理的缓存</h2></div>
+        <div class="section-actions"><button class="btn quiet" type="button" data-action="scroll-decision">跳到需要判断的项目 ↓</button></div>
+      </div>
+      <p class="section-intro">这些项目主要是临时文件或可重新下载的运行时。它们不进入导出选择；清理前关闭相关软件，遇到“正在使用”就跳过。</p>
+      <div class="grid" id="direct-grid"></div>
+    </section>
+
+    <section class="section" id="decision-section" aria-labelledby="decision-title">
+      <div class="section-head">
+        <div><div class="section-kicker">02 / YOUR CALL</div><h2 id="decision-title">需要你判断的项目</h2></div>
+        <div class="section-actions">
+          <button class="btn" type="button" data-action="select-group" data-group="decision">全选本组</button>
+          <button class="btn" type="button" data-action="clear-group" data-group="decision">清空本组</button>
+        </div>
+      </div>
+      <p class="section-intro">这里的项目可能是专业软件、开发环境、模型或虚拟设备。勾选表示“希望后续为我生成清理步骤”，不代表现在就会删除。</p>
+      <div class="grid" id="decision-grid"></div>
+    </section>
+
+    <section class="section" aria-labelledby="keep-title">
+      <div class="section-head"><div><div class="section-kicker">03 / HANDS OFF</div><h2 id="keep-title">建议不要手动处理</h2></div></div>
+      <p class="section-intro">这些位置可能含有系统组件、聊天记录、浏览器资料或卸载所需的安装包。页面只解释原因，不提供勾选。</p>
+      <div class="grid" id="keep-grid"></div>
+    </section>
+    <div class="footer-space"></div>
+  </main>
+
+  <div class="selection-bar" aria-label="导出选择">
+    <div class="wrap bar-inner">
+      <div>
+        <div class="selection-number">已选择 <span id="selected-count">0</span> 项 · 预计涉及 <span id="selected-size">0 GB</span></div>
+        <p id="status" role="status" aria-live="polite"></p>
+      </div>
+      <div class="bar-actions">
+        <button class="btn" type="button" data-action="clear-all">清空选择</button>
+        <button class="btn" type="button" data-action="copy-json">复制 JSON</button>
+        <button class="btn primary" type="button" data-action="download-json">导出 JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const diskSummary = {
+      drive: "C:",
+      totalGB: 221.8,
+      usedGB: 184.5,
+      freeGB: 37.3,
+      inspectedAt: "2026-10-11",
+      note: "只读盘点结果，空间为约数，实际可释放量以卸载器或清理工具为准。"
+    };
+
+    const items = [
+      { id: "temp-files", group: "direct", name: "用户临时文件", sizeGB: 1.91, tags: ["可重建", "低风险"], summary: "程序运行时留下的临时文件；正在使用的文件清不掉也没关系。", purpose: "Windows 和应用程序的临时工作区，不是个人文档。", impact: "通常只会让某些安装/更新任务下次重新生成临时文件。", recovery: "需要时由 Windows 或应用自动重新创建。", path: "C:/Users/Administrator/AppData/Local/Temp", method: "关闭正在运行的软件后，用 Windows 设置里的临时文件清理。" },
+      { id: "codex-runtimes", group: "direct", name: "Codex runtime 下载缓存", sizeGB: 2.20, tags: ["可重建"], summary: "Codex 使用的 Node runtime 压缩包和安装缓存。", purpose: "给本地工具提供运行环境；不是你的项目文件。", impact: "下次使用相关工具时可能重新下载 runtime。", recovery: "由工具自动重新下载。", path: "C:/Users/Administrator/.cache/codex-runtimes", method: "关闭 Codex 及其后台进程后再按工具支持的方式清理。" },
+      { id: "opencode-cache", group: "direct", name: "OpenCode 缓存", sizeGB: 1.66, tags: ["可重建"], summary: "OpenCode 的运行缓存和下载内容。", purpose: "加快 OpenCode 启动和运行，不是聊天记录本身。", impact: "下次使用时可能需要重新生成或下载。", recovery: "由 OpenCode 自动重建。", path: "C:/Users/Administrator/.cache/opencode", method: "退出 OpenCode 后再清理缓存。" },
+      { id: "node-caches", group: "direct", name: "npm / pnpm 下载缓存", sizeGB: 2.34, tags: ["可重建", "开发缓存"], summary: "Node.js 包管理器下载过的依赖压缩包。", purpose: "让 npm、pnpm 安装项目依赖时更快。", impact: "不会删除项目里的 node_modules；以后装包可能重新下载。", recovery: "执行项目安装命令即可重新取得。", path: "C:/Users/Administrator/AppData/Local/npm-cache + C:/Users/Administrator/AppData/Local/pnpm", method: "使用 npm/pnpm 自己的缓存清理命令，不要误删项目目录。" },
+      { id: "browser-runtimes", group: "direct", name: "Playwright / Puppeteer 浏览器运行时", sizeGB: 1.88, tags: ["可重建", "开发缓存"], summary: "给自动化测试或浏览器工具下载的 Chromium。", purpose: "让 Playwright、Puppeteer 等工具能启动独立浏览器。", impact: "做浏览器自动化时需要重新下载浏览器。", recovery: "重新运行项目的浏览器安装命令。", path: "C:/Users/Administrator/AppData/Local/ms-playwright + C:/Users/Administrator/.cache/puppeteer", method: "确认近期不用浏览器自动化后清理对应运行时。" },
+
+      { id: "android-avd", group: "decision", name: "Android Pixel_7 模拟器数据", sizeGB: 5.71, tags: ["虚拟设备", "删除后可重建"], summary: "一个模拟 Android 手机的完整虚拟磁盘；不是普通缓存。", purpose: "Android Studio 用它来运行和测试手机 App，里面包含虚拟手机数据。", impact: "删除后 Pixel_7 模拟器和其中的数据会消失；Android 项目源码不受影响。", recovery: "可在 Android Studio 的 Device Manager 重新创建，但要重新下载/初始化。", path: "C:/Users/Administrator/.android/avd/Pixel_7.avd", method: "如果不再做 Android 开发或测试，可以在 Android Studio 的 Device Manager 删除。" },
+      { id: "android-sdk-images", group: "decision", name: "Android SDK 系统镜像", sizeGB: 2.37, tags: ["开发环境", "可重新下载"], summary: "模拟器启动所需的 Android 系统镜像，其中一个版本约 2.25 GB。", purpose: "相当于模拟器里的 Android 操作系统。", impact: "删除后对应 Android API 的模拟器无法启动；项目源码和普通 Python/Node 环境不受影响。", recovery: "通过 Android Studio 的 SDK Manager 重新安装。", path: "C:/Users/Administrator/AppData/Local/Android/Sdk/system-images", method: "不做 Android 模拟器时可卸载；不要手删整个 SDK，优先使用 SDK Manager。" },
+      { id: "photoshop", group: "decision", name: "Adobe Photoshop 2025", sizeGB: 4.59, tags: ["专业软件", "需卸载器"], summary: "Adobe 的图像编辑软件；另外还有约 2.2 GB Camera Raw 相关数据。", purpose: "修图、合成、抠图、设计 PSD 文件。", impact: "卸载后 Photoshop、相关插件和本机程序设置不可用；PSD 文件本身不会自动删除。", recovery: "通过 Adobe Creative Cloud 重新安装；需要登录和重新下载。", path: "C:/Program Files/Adobe/Adobe Photoshop 2025", method: "只在确认不用 Photoshop 时，通过 Creative Cloud 卸载。" },
+      { id: "cinema4d", group: "decision", name: "Maxon Cinema 4D 2025", sizeGB: 0.83, tags: ["专业软件", "三维"], summary: "三维建模、动画和渲染软件，安装体积不算最大，但用途很专门。", purpose: "制作 3D 模型、动画、材质和渲染。", impact: "相关工程文件不会自动删除，但本机无法继续用 Cinema 4D 打开或渲染。", recovery: "从 Maxon App 重新安装。", path: "C:/Program Files/Maxon Cinema 4D 2025", method: "如果没有 3D 项目或素材制作需求，可卸载。" },
+      { id: "vmware", group: "decision", name: "VMware Workstation", sizeGB: 1.17, tags: ["虚拟机", "需确认"], summary: "运行完整 Windows/Linux 虚拟机的软件。", purpose: "在当前电脑里启动另一台虚拟电脑。", impact: "卸载软件不一定删除虚拟磁盘，但以后无法正常管理/启动 VMware 虚拟机。", recovery: "重新安装 VMware；虚拟机文件需要另外保留。", path: "注册安装量约 1.17 GB；虚拟机文件可能在其他路径", method: "确认没有要保留的虚拟机后，通过系统卸载。" },
+      { id: "docker", group: "decision", name: "Docker Desktop", sizeGB: 3.93, tags: ["开发工具", "容器"], summary: "用于运行 Docker 容器的桌面程序；目前看到的主要是程序和运行组件。", purpose: "开发、测试和运行隔离的 Linux/Windows 容器。", impact: "停止使用 Docker Desktop 后，容器、镜像和本地开发环境不可用；项目源代码不受影响。", recovery: "重新安装 Docker Desktop；镜像通常需要重新拉取。", path: "C:/Program Files/Docker/Docker", method: "确认没有本地容器、镜像或依赖 Docker 的项目后卸载。" },
+      { id: "visual-studio", group: "decision", name: "Visual Studio Community 2022", sizeGB: 2.46, tags: ["开发工具", "编译器"], summary: "微软的完整开发环境；另有 Build Tools 和安装包缓存。", purpose: "写 C#/C++ 等程序、调试、编译桌面应用或游戏项目。", impact: "卸载后相关 IDE、编译器、调试器和部分项目工具不可用。", recovery: "通过 Visual Studio Installer 重新安装所需工作负载。", path: "C:/Program Files/Microsoft Visual Studio/2022/Community", method: "如果只偶尔编译项目，先保留；不再开发时才考虑卸载。" },
+      { id: "windows-sdk-old", group: "decision", name: "旧版 Windows SDK 10.0.26100.6901", sizeGB: 2.25, tags: ["开发组件", "可能重复"], summary: "Windows 原生开发用的头文件、库和工具；电脑上还有 26100.7705 新版。", purpose: "给 C/C++、Windows App、Visual Studio 项目提供编译所需组件。", impact: "依赖旧 SDK 的项目可能无法编译；日常办公、浏览器和普通软件不受影响。", recovery: "通过 Visual Studio Installer 或微软 SDK 安装程序重新安装。", path: "Windows SDK 注册安装项 10.1.26100.6901", method: "只有在确认项目不锁定旧 SDK，且新版 SDK 能满足需求时再卸载。" },
+      { id: "astro-stack", group: "decision", name: "PixInsight / N.I.N.A. / ASCOM 天文软件组合", sizeGB: 1.20, tags: ["专业软件", "天文摄影"], summary: "用于天文相机控制、望远镜连接、深空照片处理的一组软件。", purpose: "N.I.N.A. 负责拍摄控制，ASCOM 负责设备驱动，PixInsight 负责天文图像后期。", impact: "卸载后天文相机/望远镜工作流会中断；普通图片和其他软件不受影响。", recovery: "分别从各自官网或安装器重新安装，设备驱动可能还要重新配置。", path: "C:/Program Files/N.I.N.A. - Nighttime Imaging 'N' Astronomy + D:/1a1a1a/ PixInsight", method: "不做天文摄影时可整组卸载；如果只是暂时不用，建议保留。" },
+      { id: "huggingface-model", group: "decision", name: "Hugging Face faster-whisper 模型", sizeGB: 1.63, tags: ["AI 模型", "重新下载较慢"], summary: "语音识别模型，不是普通的临时缓存；其中一个 large-v3 模型约 1.51 GB。", purpose: "给本地语音转文字、字幕或听写工具使用。", impact: "删除后本地语音识别会失效，直到重新下载模型。", recovery: "运行对应转录工具或模型下载命令重新下载。", path: "C:/Users/Administrator/.cache/huggingface", method: "确认近期不做语音转文字，再考虑清理；否则建议保留。" },
+      { id: "uv-cache", group: "decision", name: "uv Python 包缓存", sizeGB: 2.55, tags: ["开发缓存", "可重新下载"], summary: "Python 包管理器 uv 下载过的 wheel 和依赖缓存。", purpose: "让 Python 项目创建环境和安装依赖更快。", impact: "不会直接删除项目代码，但下次建环境可能重新下载依赖。", recovery: "重新运行 uv 的安装/同步命令。", path: "C:/Users/Administrator/AppData/Local/uv", method: "如果近期不做 Python 项目，可清理；有离线开发需求时建议保留。" },
+      { id: "old-wechat", group: "decision", name: "旧版微信 3.9.11.19 程序", sizeGB: 0.73, tags: ["重复安装", "先备份聊天"], summary: "系统里同时登记了微信 3.9 和 4.1 两个版本。", purpose: "旧版微信桌面程序本体；聊天资料另在 Tencent 目录中。", impact: "卸载旧程序可能影响旧版本地资料的打开方式；不要把它等同于删除聊天记录。", recovery: "重新安装旧版微信，但旧版支持情况和数据兼容性不保证。", path: "注册安装项：微信 3.9.11.19", method: "确认新版微信能正常打开并完成聊天备份后，再从系统应用中卸载旧版。" },
+
+      { id: "chrome-profile", group: "keep", name: "Chrome 用户资料", sizeGB: 3.90, tags: ["浏览器资料", "不要整目录删"], summary: "包含书签、扩展、登录状态、浏览记录和缓存，不能把全部都当垃圾。", purpose: "保存 Chrome 的个人浏览器环境。", impact: "整目录删除可能丢失本地资料、扩展和登录状态。", recovery: "部分数据可通过同步恢复，但不应依赖同步作为备份。", path: "C:/Users/Administrator/AppData/Local/Google/Chrome", method: "只在 Chrome 设置中清理缓存，不要手动删除 User Data。" },
+      { id: "wechat-data", group: "keep", name: "微信 / 企微 / WeMeet 数据", sizeGB: 4.80, tags: ["聊天记录", "不要手删"], summary: "Tencent 目录里包含 xwechat、WeChat、WXWork 和会议相关数据。", purpose: "聊天记录、接收文件、办公资料和程序数据。", impact: "手动删除可能造成聊天记录、文件和登录数据丢失。", recovery: "只能依赖聊天迁移、备份或重新登录，不能保证恢复。", path: "C:/Users/Administrator/AppData/Roaming/Tencent", method: "在微信/企微各自设置里清理或迁移，不要直接删 Tencent 文件夹。" },
+      { id: "system-managed", group: "keep", name: "系统管理文件与安装缓存", sizeGB: 8.00, tags: ["系统文件", "不要手删"], summary: "包括 pagefile、swapfile、Windows Installer、Package Cache 和搜索索引。", purpose: "虚拟内存、软件修复/卸载、Windows 搜索和系统组件。", impact: "手删可能导致软件无法修复/卸载、搜索异常或系统稳定性问题。", recovery: "由 Windows 或对应安装器维护，不能靠普通回收站恢复。", path: "C:/pagefile.sys · C:/Windows/Installer · C:/ProgramData/Package Cache · C:/ProgramData/Microsoft/Search", method: "需要释放空间时使用 Windows 存储感知或软件自身卸载器。" },
+      { id: "adobe-cameraraw", group: "keep", name: "Adobe Camera Raw 资源", sizeGB: 2.19, tags: ["Adobe 资源", "不要手删"], summary: "包含相机/镜头配置和 AI 修图模型，肉眼看起来像一堆数据文件。", purpose: "让 Photoshop/Camera Raw 识别相机、镜头并提供降噪、蒙版等功能。", impact: "手删可能导致识别配置丢失或 AI 功能需要重新下载。", recovery: "Adobe 可能重新下载部分组件，但不建议依赖自动恢复。", path: "C:/ProgramData/Adobe/CameraRaw", method: "只通过 Adobe 软件的偏好设置或 Creative Cloud 管理。" }
+    ];
+
+    const state = new Set();
+    const money = (value) => `${value.toFixed(2).replace(/\.00$/, "")} GB`;
+    const escapeHtml = (value) => String(value).replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\\": "&#92;", '"': "&quot;" }[char]));
+
+    function cardTemplate(item) {
+      const selectable = item.group === "decision";
+      const tags = item.tags.map((tag) => `<span class="tag${tag.includes("风险") || tag.includes("备份") || tag.includes("不要") ? " warn" : ""}">${escapeHtml(tag)}</span>`).join("");
+      return `<article class="card${selectable ? " selectable" : " plain-card"}" data-id="${item.id}">
+        <div class="card-top">
+          ${selectable ? `<input class="check" type="checkbox" id="check-${item.id}" data-id="${item.id}" aria-label="选择 ${escapeHtml(item.name)}">` : `<div class="tag" aria-hidden="true">${item.group === "direct" ? "可清理" : "保留"}</div>`}
+          <div class="card-main">
+            <div class="card-title-row"><h3>${escapeHtml(item.name)}</h3><span class="size">${money(item.sizeGB)}</span></div>
+            <div>${tags}</div>
+            <p class="summary">${escapeHtml(item.summary)}</p>
+          </div>
+        </div>
+        <div class="impact"><strong>${selectable ? "删掉会怎样：" : "判断："}</strong>${escapeHtml(item.impact)}</div>
+        <details><summary>看懂它：用途、恢复方式与路径</summary><div class="details-body">
+          <div><strong>它是做什么的：</strong>${escapeHtml(item.purpose)}</div>
+          <div><strong>如何恢复：</strong>${escapeHtml(item.recovery)}</div>
+          <div><strong>建议动作：</strong>${escapeHtml(item.method)}</div>
+          <div><strong>位置：</strong><code class="path">${escapeHtml(item.path)}</code></div>
+        </div></details>
+      </article>`;
+    }
+
+    function render() {
+      ["direct", "decision", "keep"].forEach((group) => {
+        document.getElementById(`${group}-grid`).innerHTML = items.filter((item) => item.group === group).map(cardTemplate).join("");
+      });
+      document.querySelectorAll("input[data-id]").forEach((input) => input.addEventListener("change", () => {
+        if (input.checked) state.add(input.dataset.id); else state.delete(input.dataset.id);
+        updateSelection();
+      }));
+    }
+
+    function updateSelection() {
+      const selected = items.filter((item) => state.has(item.id));
+      const total = selected.reduce((sum, item) => sum + item.sizeGB, 0);
+      document.getElementById("selected-count").textContent = selected.length;
+      document.getElementById("selected-size").textContent = money(total);
+      document.querySelectorAll(".card.selectable").forEach((card) => card.classList.toggle("selected", state.has(card.dataset.id)));
+    }
+
+    function selectionPayload() {
+      return {
+        schema: "c-drive-cleanup-selection/v1",
+        exportedAt: new Date().toISOString(),
+        source: "offline checklist",
+        disk: diskSummary,
+        selectedIds: [...state],
+        items: items.map((item) => ({ ...item, selected: state.has(item.id) }))
+      };
+    }
+
+    function setStatus(message) {
+      const node = document.getElementById("status");
+      node.textContent = message;
+      window.clearTimeout(setStatus.timer);
+      setStatus.timer = window.setTimeout(() => { node.textContent = ""; }, 4200);
+    }
+
+    function jsonText() { return JSON.stringify(selectionPayload(), null, 2); }
+
+    async function copyJson() {
+      const text = jsonText();
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("JSON 已复制，可以粘贴发给我。");
+      } catch (error) {
+        const area = document.createElement("textarea");
+        area.value = text; area.style.position = "fixed"; area.style.opacity = "0";
+        document.body.appendChild(area); area.select(); document.execCommand("copy"); area.remove();
+        setStatus("JSON 已复制，可以粘贴发给我。");
+      }
+    }
+
+    function downloadJson() {
+      const blob = new Blob([jsonText()], { type: "application/json;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob); link.download = "c-drive-cleanup-selection.json";
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(link.href);
+      setStatus("JSON 文件已导出。");
+    }
+
+    document.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+      if (action === "select-group" || action === "clear-group") {
+        items.filter((item) => item.group === button.dataset.group).forEach((item) => action === "select-group" ? state.add(item.id) : state.delete(item.id));
+        items.filter((item) => item.group === button.dataset.group).forEach((item) => {
+          const input = document.querySelector(`input[data-id="${item.id}"]`);
+          if (input) input.checked = state.has(item.id);
+        });
+        updateSelection();
+      }
+      if (action === "clear-all") {
+        state.clear(); document.querySelectorAll("input[data-id]").forEach((input) => { input.checked = false; }); updateSelection(); setStatus("已清空所有选择。");
+      }
+      if (action === "copy-json") copyJson();
+      if (action === "download-json") downloadJson();
+      if (action === "scroll-decision") document.getElementById("decision-section").scrollIntoView({ behavior: "smooth" });
+    });
+
+    render();
+    updateSelection();
+  </script>
+</body>
+</html>

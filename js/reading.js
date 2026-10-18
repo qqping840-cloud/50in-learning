@@ -1080,7 +1080,7 @@
       state.annoMode, state.hideRomaji, box, true);
   }
 
-  // 句末点读按钮：点一下朗读整句（走 UI.speak 统一入口：本地音频 → 服务端 Edge 合成）
+  // 句末点读按钮：点一下朗读整句（截整篇预生成音频，Nanami，离线可用；再点一次停）
   function appendSentSpeak(parent, sent) {
     var ja = sent && sent.ja;
     if (!ja) return;
@@ -1092,12 +1092,11 @@
     btn.innerHTML = ICON_SPEAK;
     btn.onclick = function (e) {
       e.stopPropagation();
-      stopReadAloud();   // 整篇朗读在跑时先停掉，别两路声音叠在一起
-      if (window.UI && window.UI.speak) window.UI.speak(ja);
+      sentenceSpeak(parent.closest('.reading-article') || parent, parent, ja);
     };
-    // 悬停预热：服务端合成本句首次要 1 秒左右，提前请求，点下去就响
+    // 悬停预热：只有退回服务端合成的那条路才需要（AI 生成的文章）
     btn.onmouseenter = function () {
-      if (window.UI && window.UI.prefetchSpeak) window.UI.prefetchSpeak(ja);
+      if (state.articleIdx == null && window.UI && window.UI.prefetchSpeak) window.UI.prefetchSpeak(ja);
     };
     parent.appendChild(btn);
   }
@@ -1384,6 +1383,22 @@
     return { items: items, spine: spine };
   }
 
+  // 词级时间戳 → 字符区间（贪心对齐；失败则全局找，再失败跳过）
+  function wordRanges(spine, words) {
+    var ranges = [];
+    var cursor = 0;
+    (words || []).forEach(function (w) {
+      var t = w.t || '';
+      if (!t) return;
+      var pos = spine.indexOf(t, cursor);
+      if (pos < 0) pos = spine.indexOf(t);
+      if (pos < 0) return;
+      ranges.push({ s: pos, e: pos + t.length, start: w.start, dur: w.dur });
+      cursor = pos + t.length;
+    });
+    return ranges;
+  }
+
   function placeHighlight(container, items, hl, range, tms) {
     var progress = Math.max(0, Math.min(0.999, (tms - range.start) / (range.dur || 1)));
     var pos = range.s + Math.floor((range.e - range.s) * progress);
@@ -1420,6 +1435,7 @@
   function stopReadAloud() {
     var btn = el('btn-reading-read');
     if (btn) { btn.textContent = '朗读全文'; btn.disabled = false; }
+    stopSentSpeak();
     if (!player) return;
     if (player.raf) cancelAnimationFrame(player.raf);
     try { player.audio.pause(); } catch (e) {}
@@ -1449,45 +1465,20 @@
       return;
     }
     var idx = state.articleIdx;
-
-    // 离线预生成时间戳优先（file:// 不能 fetch）
-    if (window.OFFLINE && window.OFFLINE.tts && window.OFFLINE.tts[idx]) {
-      startWithTiming(container, idx, (window.OFFLINE.tts[idx].words) || []);
-      return;
-    }
-    if (location.protocol === 'file:') {
-      var offlineBtn = el('btn-reading-read');
-      if (offlineBtn) { offlineBtn.textContent = '本地音频不可用'; offlineBtn.disabled = true; }
-      return;
-    }
-
-    fetch('assets/tts/lib-' + idx + '.json').then(function (r) {
-      if (!r.ok) throw new Error('no-timing');
-      return r.json();
-    }).then(function (data) {
-      startWithTiming(container, idx, data.words || []);
-    }).catch(function () {
-      var btn = el('btn-reading-read');
-      if (btn) { btn.textContent = '无朗读音频'; btn.disabled = true; }
+    loadLibWords(idx, function (words) {
+      if (!words || !words.length) {
+        var btn = el('btn-reading-read');
+        if (btn) { btn.textContent = '无朗读音频'; btn.disabled = true; }
+        return;
+      }
+      startWithTiming(container, idx, words);
     });
   }
 
   function startWithTiming(container, idx, words) {
     var spineData = buildSpine(container);
     var spine = spineData.spine, items = spineData.items;
-
-    // 词 → 字符区间（贪心对齐；失败则全局找，再失败跳过）
-    var ranges = [];
-    var cursor = 0;
-    words.forEach(function (w) {
-      var t = w.t || '';
-      if (!t) return;
-      var pos = spine.indexOf(t, cursor);
-      if (pos < 0) pos = spine.indexOf(t);
-      if (pos < 0) return;
-      ranges.push({ s: pos, e: pos + t.length, start: w.start, dur: w.dur });
-      cursor = pos + t.length;
-    });
+    var ranges = wordRanges(spine, words);
     if (!ranges.length) return;
 
     var hl = document.createElement('div');
@@ -1518,6 +1509,102 @@
       if (player && player.audio === audio) player.raf = requestAnimationFrame(frame);
     }).catch(function () {
       if (player && player.audio === audio) stopReadAloud();
+    });
+  }
+
+  // ---------- 逐句点读：从整篇音频里截取这一句 ----------
+  // 为什么不直接让服务端按需合成：句子没预生成，合成要联网且要 3~7 秒；file:// 下根本拿不到，
+  // 会掉到浏览器自带语音（不是 Nanami）。截整篇音频这一段则瞬间出声、离线可用，
+  // 而且和「朗读全文」是同一个文件，人声完全一致。
+  var libWords = {};        // idx -> [{t,start,dur}]（[] = 这篇没有预生成时间戳）
+  var libWordsWaiters = {}; // idx -> [cb]（同一篇的并发请求合并成一次 fetch）
+  var sentPlayer = null;    // { audio, sentEl }
+
+  function loadLibWords(idx, cb) {
+    if (libWords[idx]) return cb(libWords[idx]);
+    if (window.OFFLINE && window.OFFLINE.tts && window.OFFLINE.tts[idx]) {
+      libWords[idx] = window.OFFLINE.tts[idx].words || [];
+      return cb(libWords[idx]);
+    }
+    if (libWordsWaiters[idx]) { libWordsWaiters[idx].push(cb); return; }
+    libWordsWaiters[idx] = [cb];
+    var done = function (words) {
+      libWords[idx] = words || [];
+      var qs = libWordsWaiters[idx]; delete libWordsWaiters[idx];
+      qs.forEach(function (f) { f(libWords[idx]); });
+    };
+    if (location.protocol === 'file:') return done(null);
+    fetch('assets/tts/lib-' + idx + '.json')
+      .then(function (r) { if (!r.ok) throw new Error('no-timing'); return r.json(); })
+      .then(function (d) { done(d.words || []); })
+      .catch(function () { done(null); });
+  }
+
+  // 这一句在整篇音频里的毫秒区间；对不上返回 null
+  function sentenceRange(container, sentEl, words) {
+    var spineData = buildSpine(container);
+    var chars = sentEl.querySelectorAll('.reading-char');
+    if (!chars.length) return null;
+    var first = chars[0], last = chars[chars.length - 1];
+    var s = -1, e = -1;
+    spineData.items.forEach(function (it) {
+      if (it.el === first) s = it.start;
+      if (it.el === last) e = it.start + it.len;
+    });
+    if (s < 0 || e <= s) return null;
+    var start = null, end = null;
+    wordRanges(spineData.spine, words).forEach(function (r) {
+      if (r.s >= e || r.e <= s) return;
+      if (start === null) start = r.start;
+      end = r.start + r.dur;
+    });
+    return start === null ? null : { start: start, end: end };
+  }
+
+  function stopSentSpeak() {
+    if (!sentPlayer) return;
+    try { sentPlayer.audio.pause(); } catch (e) {}
+    if (sentPlayer.sentEl) sentPlayer.sentEl.classList.remove('speaking');
+    sentPlayer = null;
+  }
+
+  // 没有预生成音频时（AI 生成的文章 / 音频文件缺失）退回统一点读入口
+  function fallbackSentenceSpeak(ja) {
+    if (ja && window.UI && window.UI.speak) window.UI.speak(ja);
+  }
+
+  function playSlice(idx, sentEl, ja, rg) {
+    var audio = new Audio('assets/tts/lib-' + idx + '.mp3');
+    var rec = { audio: audio, sentEl: sentEl };
+    sentPlayer = rec;
+    var fail = function () {
+      if (sentPlayer !== rec) return;
+      stopSentSpeak();
+      fallbackSentenceSpeak(ja);
+    };
+    audio.onerror = fail;
+    // 必须先等到元数据就绪再定位，否则会从头播一小段（听到的是上一篇的声音）
+    audio.onloadedmetadata = function () {
+      if (sentPlayer !== rec) return;
+      audio.currentTime = rg.start / 1000;
+      audio.ontimeupdate = function () {
+        if (sentPlayer === rec && audio.currentTime * 1000 >= rg.end) stopSentSpeak();
+      };
+      audio.onended = function () { if (sentPlayer === rec) stopSentSpeak(); };
+      audio.onplay = function () { if (sentPlayer === rec) sentEl.classList.add('speaking'); };
+      audio.play().catch(fail);
+    };
+  }
+
+  function sentenceSpeak(container, sentEl, ja) {
+    if (sentPlayer && sentPlayer.sentEl === sentEl) { stopSentSpeak(); return; }  // 再点一次 = 停
+    stopReadAloud();                                  // 停掉上一句 / 整篇朗读，不叠音
+    var idx = state.articleIdx;
+    if (idx == null) { fallbackSentenceSpeak(ja); return; }
+    loadLibWords(idx, function (words) {
+      var rg = words && words.length ? sentenceRange(container, sentEl, words) : null;
+      if (!rg) { fallbackSentenceSpeak(ja); return; }
+      playSlice(idx, sentEl, ja, rg);
     });
   }
 

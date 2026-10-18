@@ -2057,6 +2057,7 @@ button {
 }
 
 .reading-sent-speak:hover { opacity: 1; background: var(--color-primary-light); }
+.reading-sent.speaking .reading-sent-speak { opacity: 1; background: var(--color-primary-light); }
 .reading-sent-speak:active { transform: translateY(1px); }
 .reading-sent-speak svg { width: 16px; height: 16px; }
 
