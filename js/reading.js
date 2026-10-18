@@ -26,6 +26,7 @@
     articleRes: null,   // 结构化文章资源（带译文/词注），null=无
     annoMode: 'sent',   // 翻译批注模式：off / sent / word（有译文时默认显示句译）
     wordbookIdx: null,  // 当前打开的单词本下标（null=未打开，显示单词本列表）
+    wordbookPage: 0,
     wbHideRomaji: false, // 单词本是否屏蔽罗马音
     exManifest: null,   // 例句音频清单 { 例句原文: n }
     exManifestLoading: false
@@ -54,6 +55,14 @@
 
   function el(id) { return document.getElementById(id); }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  // 句末点读按钮图标（与 ui.js 的 ICON_SPEAK 同款：24×24 线性描边，currentColor 跟随文字色）
+  var ICON_SPEAK =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M11 5 6 9H3v6h3l5 4V5z"/>' +
+      '<path d="M15.5 8.5a5 5 0 0 1 0 7"/>' +
+      '<path d="M18 6a8.5 8.5 0 0 1 0 12"/>' +
+    '</svg>';
 
   // 特殊小假名补充映射（data.js 未收录，供阅读注音）
   var EXTRA_KANA = {
@@ -88,6 +97,7 @@
   // 惰性初始化 kuroshiro，返回 Promise。失败时返回 false（降级，不崩）。
   // 注意：失败不缓存 —— 清掉 promise，下次打开文章会重试（服务刚重启时很常见）
   function initKuroshiro() {
+    if (location.protocol === 'file:') return Promise.resolve(false);
     if (kuroshiroReady) return Promise.resolve(true);
     if (kuroshiroPromise) return kuroshiroPromise;
     kuroshiroPromise = new Promise(function (resolve) {
@@ -292,19 +302,11 @@
   var REVIEW_LENGTH = 60;       // 每次练习的假名个数
 
   function reviewPoolSize() {
-    var rows = (window.Storage.getTypingRank() || {}).rows || [];
-    return rows.filter(function (r) {
-      return Math.max(0, Math.floor(Number(r.wrong) || 0)) > 0;
-    }).length;
+    return Object.keys(window.Storage.getTypingReviewWeights()).length;
   }
 
   function startReview() {
-    var rows = (window.Storage.getTypingRank() || {}).rows || [];
-    var weights = {};
-    rows.forEach(function (r) {
-      var wrong = Math.max(0, Math.floor(Number(r.wrong) || 0));
-      if (wrong > 0 && r.char) weights[r.char] = wrong;
-    });
+    var weights = window.Storage.getTypingReviewWeights();
     if (!Object.keys(weights).length) return;
     var text = window.Typing.buildReviewText(weights, REVIEW_LENGTH);
     state.article = text;
@@ -367,7 +369,7 @@
     html += '<div class="mistakes-head">最近两次练习</div>';
     html += '</div>';
     if (!rows.length) {
-      html += '<div class="mistakes-empty">还没有打字记录，先练一篇文章吧</div>';
+      html += '<div class="mistakes-empty">' + (reviewPoolSize() ? '已有待复习假名，点击下方开始练习' : '还没有打字记录，先练一篇文章吧') + '</div>';
     } else {
       // 最大错误次数：用于墨团直径/透明度的归一化（至少为 1）
       var maxWrong = 0;
@@ -391,9 +393,9 @@
       });
       html += '</div>';
     }
-    html += '<div class="mistakes-note">依据最近两次打字练习</div>';
+    html += '<div class="mistakes-note">排行依据最近两次打字练习；出题依据实时错题分</div>';
     html += '<div class="mistakes-actions">' +
-      '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start"' + (rows.length ? '' : ' disabled') + '>开始错题练习</button>' +
+      '<button class="mistakes-btn mistakes-btn-primary" id="btn-mistakes-start"' + (reviewPoolSize() ? '' : ' disabled') + '>开始错题练习</button>' +
       '<button class="mistakes-btn mistakes-btn-ghost" id="btn-mistakes-back">返回文章</button>' +
     '</div>';
     html += '<div class="mistakes-footer">' +
@@ -483,6 +485,7 @@
     state.typingActive = false;
     state.mistakesActive = false;
     state.wordbookIdx = idx;
+    state.wordbookPage = 0;
     renderArticleArea();
     renderWordbookView();
     var v = el('wordbook-view');
@@ -508,17 +511,24 @@
     tryLoadExManifest();
 
     box.style.display = 'block';
+    var words = book.words || [];
+    var pageSize = 40;
+    var pageCount = Math.max(1, Math.ceil(words.length / pageSize));
+    state.wordbookPage = Math.min(state.wordbookPage, pageCount - 1);
+    var start = state.wordbookPage * pageSize;
     var hide = state.wbHideRomaji;
     var html = '<div class="wordbook-head">' +
       '<button class="btn btn-secondary" id="btn-wordbook-back">返回单词本列表</button>' +
       '<button class="btn btn-secondary" id="btn-wordbook-hide">' + (hide ? '显示罗马音' : '屏蔽罗马音') + '</button>' +
       '<div class="wordbook-title">' + esc(book.title || '') + '</div>' +
       (book.desc ? '<div class="wordbook-subtitle">' + esc(book.desc) + '</div>' : '') +
-      '<div class="wordbook-count">共 ' + (book.words || []).length + ' 个词，点词听发音；例句可朗读、悬停看词义</div>' +
+      '<div class="wordbook-count">共 ' + words.length + ' 个词</div>' +
+      (book.source ? '<a class="wordbook-count" href="' + esc(book.source) + '" target="_blank" rel="noopener noreferrer">egg rolls · ' + esc(book.license) + '</a>' : '') +
       '</div>';
 
     html += '<div class="wordbook-list' + (hide ? ' hide-romaji' : '') + '" id="wordbook-list">';
-    (book.words || []).forEach(function (w, i) {
+    words.slice(start, start + pageSize).forEach(function (w, offset) {
+      var i = start + offset;
       var kana = w.kana || '';
       var kanji = w.kanji || '';
       var romaji = kanaRomajiFor(kana);
@@ -547,7 +557,23 @@
         '</div>';
     });
     html += '</div>';
+    if (pageCount > 1) {
+      html += '<div class="wordbook-pages">' +
+        '<button class="btn btn-secondary" id="btn-wordbook-prev"' + (state.wordbookPage === 0 ? ' disabled' : '') + '>上一页</button>' +
+        '<span>' + (state.wordbookPage + 1) + ' / ' + pageCount + '</span>' +
+        '<button class="btn btn-secondary" id="btn-wordbook-next"' + (state.wordbookPage === pageCount - 1 ? ' disabled' : '') + '>下一页</button></div>';
+    }
     box.innerHTML = html;
+
+    ['prev', 'next'].forEach(function (direction) {
+      var btn = el('btn-wordbook-' + direction);
+      if (btn) btn.onclick = function () {
+        stopWordbookRead();
+        state.wordbookPage += direction === 'next' ? 1 : -1;
+        renderWordbookView();
+        box.scrollIntoView({ block: 'start' });
+      };
+    });
 
     el('btn-wordbook-back').onclick = function () { closeWordbook(); };
     el('btn-wordbook-hide').onclick = function () {
@@ -604,6 +630,7 @@
     if (state.exManifest || state.exManifestLoading) return;
     // 离线预生成优先（file:// 不能 fetch）
     if (window.OFFLINE && window.OFFLINE.exManifest) { state.exManifest = window.OFFLINE.exManifest; return; }
+    if (location.protocol === 'file:') { state.exManifest = {}; return; }
     state.exManifestLoading = true;
     fetch('assets/audio/ex/manifest.json').then(function (r) {
       if (!r.ok) throw new Error('no-manifest');
@@ -612,30 +639,51 @@
   }
 
   function stopWordbookRead() {
-    var btn = document.querySelector('.wb-ex-read.playing');
-    if (btn) { btn.classList.remove('playing'); btn.textContent = '朗读例句'; }
     if (!wbPlayer) return;
-    if (wbPlayer.raf) cancelAnimationFrame(wbPlayer.raf);
-    try { wbPlayer.audio.pause(); } catch (e) {}
-    if (wbPlayer.hl && wbPlayer.hl.parentNode) wbPlayer.hl.parentNode.removeChild(wbPlayer.hl);
+    var stopped = wbPlayer;
     wbPlayer = null;
+    if (stopped.raf) cancelAnimationFrame(stopped.raf);
+    try { stopped.audio.pause(); } catch (e) {}
+    if (stopped.hl.parentNode) stopped.hl.parentNode.removeChild(stopped.hl);
+    stopped.btn.classList.remove('playing');
+    stopped.btn.textContent = stopped.idleText;
+  }
+
+  function stopExample(container) {
+    if (wbPlayer && (!container || wbPlayer.container === container)) stopWordbookRead();
+  }
+
+  function toggleExample(container) {
+    if (!wbPlayer || wbPlayer.container !== container) return false;
+    if (wbPlayer.wantPlaying) wbPlayer.pause();
+    else wbPlayer.resume();
+    return true;
+  }
+
+  function playExample(container, text, btn) {
+    if (!container || !btn) return;
+    if (toggleExample(container)) return;
+    if (!btn._exampleIdleText) btn._exampleIdleText = btn.textContent;
+    stopWordbookRead();
+    stopReadAloud();
+    var offline = window.OFFLINE;
+    var n = offline && offline.exManifest && offline.exManifest[text];
+    var timing = n != null && offline.exTiming && offline.exTiming[n];
+    if (!timing) { btn.textContent = '播放失败'; return; }
+    startWordbookTiming(container, n, timing.words || [], null, btn);
   }
 
   function toggleWordbookRead(wordIdx, btn) {
     // 已在播放同一条 -> 暂停/继续
-    if (wbPlayer && wbPlayer.wordIdx === wordIdx) {
-      if (wbPlayer.audio.paused) { wbPlayer.audio.play(); btn.textContent = '暂停'; }
-      else { wbPlayer.audio.pause(); btn.textContent = '继续'; }
-      return;
-    }
+    var container = document.querySelector('.wb-ex-article[data-ex-index="' + wordIdx + '"]');
+    if (toggleExample(container)) return;
     stopWordbookRead();
     var book = (window.WORDBOOKS || [])[state.wordbookIdx];
     var w = book && book.words[wordIdx];
     var ex = w && w.ex;
     if (!ex || !ex.ja) return;
     var n = state.exManifest ? state.exManifest[ex.ja] : undefined;
-    if (n == null) { btn.textContent = '无朗读音频'; return; }
-    var container = document.querySelector('.wb-ex-article[data-ex-index="' + wordIdx + '"]');
+    if (n == null) { if (window.UI && window.UI.speak) window.UI.speak(ex.ja); return; }
     if (!container) return;
 
     // 离线预生成时间戳优先（file:// 不能 fetch）
@@ -643,6 +691,7 @@
       startWordbookTiming(container, n, (window.OFFLINE.exTiming[n].words) || [], wordIdx, btn);
       return;
     }
+    if (location.protocol === 'file:') { if (window.UI && window.UI.speak) window.UI.speak(ex.ja); return; }
 
     fetch('assets/audio/ex/ex-' + n + '.json').then(function (r) {
       if (!r.ok) throw new Error('no-timing');
@@ -666,60 +715,75 @@
       ranges.push({ s: pos, e: pos + t.length, start: w.start, dur: w.dur });
       cursor = pos + t.length;
     });
-    if (!ranges.length) { btn.textContent = '无朗读音频'; return; }
+    if (!ranges.length) { btn.textContent = '播放失败'; return; }
 
     var hl = document.createElement('div');
     hl.className = 'reading-highlight';
     container.parentNode.appendChild(hl);
     var audio = new Audio('assets/audio/ex/ex-' + n + '.mp3');
-    wbPlayer = { audio: audio, ranges: ranges, items: items, hl: hl, container: container, raf: 0, wordIdx: wordIdx };
+    var current = { audio: audio, ranges: ranges, items: items, hl: hl, container: container, raf: 0, wordIdx: wordIdx, btn: btn, idleText: btn._exampleIdleText || btn.textContent };
+    wbPlayer = current;
 
     btn.classList.add('playing');
     btn.textContent = '暂停';
-    audio.onended = stopWordbookRead;
-    audio.onplay = function () { btn.textContent = '暂停'; };
-    audio.onpause = function () { if (!audio.ended) btn.textContent = '继续'; };
+    audio.onended = function () { if (wbPlayer === current) stopWordbookRead(); };
+    audio.onplay = function () {
+      if (wbPlayer !== current) return;
+      if (!current.wantPlaying) { audio.pause(); return; }
+      btn.textContent = '暂停';
+      updateHighlight();
+    };
+    audio.ontimeupdate = updateHighlight;
+    audio.onpause = function () {
+      if (wbPlayer !== current || !audio.paused) return;
+      if (current.raf) cancelAnimationFrame(current.raf);
+      current.raf = 0;
+      if (!audio.ended) btn.textContent = '继续';
+    };
 
-    function placeHighlight(r) {
-      var rect = null;
-      items.forEach(function (it) {
-        if (it.start < r.e && it.start + it.len > r.s) {
-          var b = it.el.getBoundingClientRect();
-          if (!rect) rect = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
-          else {
-            if (b.left < rect.left) rect.left = b.left;
-            if (b.top < rect.top) rect.top = b.top;
-            if (b.right > rect.right) rect.right = b.right;
-            if (b.bottom > rect.bottom) rect.bottom = b.bottom;
-          }
-        }
-      });
-      if (!rect) return;
-      var cb = container.getBoundingClientRect();
-      var pb = container.parentNode.getBoundingClientRect();
-      var padX = 5, padY = 4;
-      hl.style.left = (rect.left - cb.left - padX) + 'px';
-      hl.style.top = (rect.top - pb.top - padY) + 'px';
-      hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
-      hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
-      hl.classList.add('on');
-    }
-
-    function frame() {
-      if (!wbPlayer || wbPlayer.audio !== audio) return;
+    function updateHighlight() {
+      if (wbPlayer !== current) return;
+      var page = container.closest('.page');
+      if (!document.body.contains(container) || (page && !page.classList.contains('active'))) { stopWordbookRead(); return; }
+      if (audio.paused || !current.wantPlaying) return;
       var tms = audio.currentTime * 1000;
       var cur = null;
       for (var i = 0; i < ranges.length; i++) {
         if (ranges[i].start <= tms) cur = ranges[i];
         else break;
       }
-      if (cur) placeHighlight(cur);
-      wbPlayer.raf = requestAnimationFrame(frame);
+      if (cur) placeHighlight(container, items, hl, cur, tms);
     }
 
-    audio.play().then(function () {
-      wbPlayer.raf = requestAnimationFrame(frame);
-    }).catch(function () { stopWordbookRead(); });
+    function frame() {
+      current.raf = 0;
+      updateHighlight();
+      if (wbPlayer !== current || audio.paused || !current.wantPlaying) return;
+      current.raf = requestAnimationFrame(frame);
+    }
+
+    current.playVersion = 0;
+    current.pause = function () {
+      current.wantPlaying = false;
+      current.playVersion++;
+      audio.pause();
+      if (current.raf) cancelAnimationFrame(current.raf);
+      current.raf = 0;
+      btn.textContent = '继续';
+    };
+    current.resume = function () {
+      current.wantPlaying = true;
+      btn.textContent = '暂停';
+      var version = ++current.playVersion;
+      audio.play().then(function () {
+        if (wbPlayer === current && current.wantPlaying && version === current.playVersion && !audio.paused && !current.raf) current.raf = requestAnimationFrame(frame);
+      }).catch(function () {
+        if (wbPlayer !== current || !current.wantPlaying || version !== current.playVersion) return;
+        stopWordbookRead();
+        btn.textContent = '播放失败';
+      });
+    };
+    current.resume();
   }
 
   // 把一段假名拼成罗马音（相邻假名逐个转，忽略长音符等非假名字符）
@@ -748,6 +812,7 @@
 
   // ---------- API key 配置区 ----------
   function loadConfig() {
+    if (location.protocol === 'file:') return;
     apiGet('/api/config').then(function (cfg) { state.config = cfg; }).catch(function () {});
   }
 
@@ -865,13 +930,7 @@
         alert('生成失败：' + (data.message || data.error));
         return;
       }
-      // 解析 DeepSeek 响应
-      var content = '';
-      try {
-        if (data.choices && data.choices[0] && data.choices[0].message) {
-          content = data.choices[0].message.content || '';
-        }
-      } catch (e) {}
+      var content = data.content || '';
       if (!content) {
         alert('生成结果为空，请重试');
         return;
@@ -1018,7 +1077,29 @@
     var container = box ? box.querySelector('.reading-article') : null;
     if (!container) return;
     wrapAnnotation(container, state.annotated || '', state.articleRes ? state.articleRes.sents : null,
-      state.annoMode, state.hideRomaji, box);
+      state.annoMode, state.hideRomaji, box, true);
+  }
+
+  // 句末点读按钮：点一下朗读整句（走 UI.speak 统一入口：本地音频 → 服务端 Edge 合成）
+  function appendSentSpeak(parent, sent) {
+    var ja = sent && sent.ja;
+    if (!ja) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'reading-sent-speak';
+    btn.title = '朗读这一句';
+    btn.setAttribute('aria-label', '朗读这一句');
+    btn.innerHTML = ICON_SPEAK;
+    btn.onclick = function (e) {
+      e.stopPropagation();
+      stopReadAloud();   // 整篇朗读在跑时先停掉，别两路声音叠在一起
+      if (window.UI && window.UI.speak) window.UI.speak(ja);
+    };
+    // 悬停预热：服务端合成本句首次要 1 秒左右，提前请求，点下去就响
+    btn.onmouseenter = function () {
+      if (window.UI && window.UI.prefetchSpeak) window.UI.prefetchSpeak(ja);
+    };
+    parent.appendChild(btn);
   }
 
   // 批注渲染核心（可复用于文章 / 单词本例句）。
@@ -1028,7 +1109,8 @@
   //   sents: [{ ja, zh, words:[{t,zh}] }]（null/off 时只还原注音）
   //   mode: 'off' | 'sent' | 'word'
   //   clickHost: 绑点读的容器（默认 container）
-  function wrapAnnotation(container, annotatedHtml, sents, mode, hideRomaji, clickHost) {
+  //   sentSpeak: 是否在每句句末加朗读按钮（文章用；单词本例句自带「朗读例句」按钮，不重复加）
+  function wrapAnnotation(container, annotatedHtml, sents, mode, hideRomaji, clickHost, sentSpeak) {
     container.className = container.className.replace(/\s*hide-romaji/g, '') + (hideRomaji ? ' hide-romaji' : '');
     if (!sents || mode === 'off') { container.innerHTML = annotatedHtml || ''; bindCharClick(clickHost || container); return; }
 
@@ -1038,17 +1120,13 @@
     var items = [];
     var g = 0;
     Array.prototype.forEach.call(tmp.childNodes, function (nd) {
-      if (nd.nodeType === 1 && nd.classList && nd.classList.contains('reading-char')) {
-        var t = baseText(nd);
-        items.push({ el: nd, isChar: true, gStart: g, len: t.length });
-        g += t.length;
-      } else {
-        // 标点 / 文本节点：位置 = 当前偏移（挂在前面字符所属的句里）
-        items.push({ el: nd, isChar: false, gStart: g, len: 0 });
-      }
+      // 数字和长音符也参与句子对齐，不能只计入带注音的假名。
+      var t = (nd.nodeType === 3 ? nd.nodeValue : baseText(nd)).replace(/[\s、。！？，．]/g, '');
+      items.push({ el: nd, isChar: !!t.length, gStart: g, len: t.length, text: t });
+      g += t.length;
     });
     var spine = items.filter(function (x) { return x.isChar; }).map(function (x) {
-      return baseText(x.el);
+      return x.text;
     }).join('');
     var nChars = g;
 
@@ -1103,6 +1181,7 @@
       closeWord();
       if (curSent) {
         var rg = sentRanges[curSentIdx];
+        if (sentSpeak) appendSentSpeak(curSent, sents[curSentIdx]);
         if (rg && rg.zh) {
           var zh = document.createElement('span');
           zh.className = 'anno-zh-sent';
@@ -1305,6 +1384,39 @@
     return { items: items, spine: spine };
   }
 
+  function placeHighlight(container, items, hl, range, tms) {
+    var progress = Math.max(0, Math.min(0.999, (tms - range.start) / (range.dur || 1)));
+    var pos = range.s + Math.floor((range.e - range.s) * progress);
+    var fragments = [], anchor = null;
+    items.forEach(function (it) {
+      if (it.start >= range.e || it.start + it.len <= range.s) return;
+      var boxes = Array.prototype.slice.call(it.el.getClientRects());
+      fragments = fragments.concat(boxes);
+      if (it.start <= pos && it.start + it.len > pos && boxes.length) {
+        anchor = boxes[Math.min(boxes.length - 1, Math.floor((pos - it.start) / it.len * boxes.length))];
+      }
+    });
+    if (!anchor) anchor = fragments[0];
+    if (!anchor) return;
+    var rect = { left: anchor.left, top: anchor.top, right: anchor.right, bottom: anchor.bottom };
+    var centerY = (anchor.top + anchor.bottom) / 2;
+    fragments.forEach(function (b) {
+      if (centerY < b.top || centerY > b.bottom) return;
+      rect.left = Math.min(rect.left, b.left);
+      rect.top = Math.min(rect.top, b.top);
+      rect.right = Math.max(rect.right, b.right);
+      rect.bottom = Math.max(rect.bottom, b.bottom);
+    });
+    var parent = container.parentNode;
+    var pb = parent.getBoundingClientRect();
+    var padX = 5, padY = 4;
+    hl.style.left = (rect.left - pb.left - parent.clientLeft + parent.scrollLeft - padX) + 'px';
+    hl.style.top = (rect.top - pb.top - parent.clientTop + parent.scrollTop - padY) + 'px';
+    hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
+    hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
+    hl.classList.add('on');
+  }
+
   function stopReadAloud() {
     var btn = el('btn-reading-read');
     if (btn) { btn.textContent = '朗读全文'; btn.disabled = false; }
@@ -1341,6 +1453,11 @@
     // 离线预生成时间戳优先（file:// 不能 fetch）
     if (window.OFFLINE && window.OFFLINE.tts && window.OFFLINE.tts[idx]) {
       startWithTiming(container, idx, (window.OFFLINE.tts[idx].words) || []);
+      return;
+    }
+    if (location.protocol === 'file:') {
+      var offlineBtn = el('btn-reading-read');
+      if (offlineBtn) { offlineBtn.textContent = '本地音频不可用'; offlineBtn.disabled = true; }
       return;
     }
 
@@ -1385,31 +1502,6 @@
     audio.onplay = function () { if (btn) btn.textContent = '暂停朗读'; };
     audio.onpause = function () { if (btn && !audio.ended) btn.textContent = '继续朗读'; };
 
-    function placeHighlight(r) {
-      var rect = null;
-      items.forEach(function (it) {
-        if (it.start < r.e && it.start + it.len > r.s) {
-          var b = it.el.getBoundingClientRect();
-          if (!rect) rect = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
-          else {
-            if (b.left < rect.left) rect.left = b.left;
-            if (b.top < rect.top) rect.top = b.top;
-            if (b.right > rect.right) rect.right = b.right;
-            if (b.bottom > rect.bottom) rect.bottom = b.bottom;
-          }
-        }
-      });
-      if (!rect) return;
-      var cb = container.getBoundingClientRect();
-      var pb = container.parentNode.getBoundingClientRect();
-      var padX = 5, padY = 4;
-      hl.style.left = (rect.left - cb.left - padX) + 'px';
-      hl.style.top = (rect.top - pb.top - padY) + 'px';
-      hl.style.width = (rect.right - rect.left + padX * 2) + 'px';
-      hl.style.height = (rect.bottom - rect.top + padY * 2) + 'px';
-      hl.classList.add('on');
-    }
-
     function frame() {
       if (!player || player.audio !== audio) return;
       var tms = audio.currentTime * 1000;
@@ -1418,14 +1510,14 @@
         if (ranges[i].start <= tms) cur = ranges[i];
         else break;
       }
-      if (cur) placeHighlight(cur);
+      if (cur) placeHighlight(container, items, hl, cur, tms);
       player.raf = requestAnimationFrame(frame);
     }
 
     audio.play().then(function () {
-      player.raf = requestAnimationFrame(frame);
+      if (player && player.audio === audio) player.raf = requestAnimationFrame(frame);
     }).catch(function () {
-      stopReadAloud();
+      if (player && player.audio === audio) stopReadAloud();
     });
   }
 
@@ -1435,6 +1527,7 @@
     engine: null,
     hintOn: true,
     activeKey: null,
+    pendingSokuon: false,
     session: null,   // 本次打字会话收集器 { startedAt, perKana }
 
     startSession: function () {
@@ -1460,6 +1553,7 @@
     start: function (article, parsed) {
       this.flushSession();
       this.startSession();
+      this.pendingSokuon = false;
       this.engine = window.Typing.createEngine(article);
       this.render();
       // 绑定键盘
@@ -1488,6 +1582,15 @@
       return result;
     },
 
+    speakCompletedKana: function (char) {
+      if (char === 'っ') {
+        this.pendingSokuon = true;
+        return;
+      }
+      if (window.UI && window.UI.speak) window.UI.speak((this.pendingSokuon ? 'っ' : '') + char);
+      this.pendingSokuon = false;
+    },
+
     handleKeyDown: function (e) {
       if (!TypingUI.engine) return;
       // 只处理字母键
@@ -1504,7 +1607,7 @@
       TypingUI.render();
       if (result.type === 'error') TypingUI.flashWrongKey(lower);
       if (result.type === 'progress') {
-        if (window.UI && window.UI.speak) window.UI.speak(result.char);
+        TypingUI.speakCompletedKana(result.char);
       }
       // 完成全部假名 → 显示结果
       if (result.type === 'progress' && result.completed >= result.total) {
@@ -1631,7 +1734,7 @@
           TypingUI.render();
           if (result.type === 'error') TypingUI.flashWrongKey(key);
           setTimeout(function () { TypingUI.releaseKey(key); }, 150);
-          if (result.type === 'progress' && window.UI) window.UI.speak(result.char);
+          if (result.type === 'progress') TypingUI.speakCompletedKana(result.char);
           if ((result.type === 'progress' && result.pos >= result.total) || result.type === 'complete') TypingUI.showResult();
         };
       });
@@ -1700,12 +1803,19 @@
     render: render,
     generate: generateArticle,
     loadArticle: loadArticle,
+    playExample: playExample,
+    stopExample: stopExample,
     reviewPoolSize: reviewPoolSize,
     startReview: startReview,
     startConfusionDrill: startConfusionDrill,
     openMistakes: openMistakes,
     annotate: annotateWithKuroshiro,   // 供离线预生成脚本调用（强制走 kuroshiro，不查离线表）
-    initKuroshiro: initKuroshiro
+    initKuroshiro: initKuroshiro,
+    toRomaji: function (text) {
+      return initKuroshiro().then(function (ready) {
+        return ready ? globalKuroshiro.convert(text, { to: 'romaji', mode: 'spaced' }) : null;
+      }).catch(function () { return null; });
+    }
   };
 
 })();

@@ -960,6 +960,7 @@ button {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 14px;
 }
 
 .switch {
@@ -1523,6 +1524,7 @@ button {
 #wordbook-view { display: none; margin-top: 8px; }
 
 .wordbook-head { margin-bottom: 18px; }
+.wordbook-pages { display: flex; justify-content: center; align-items: center; gap: 16px; margin-top: 20px; }
 
 .wordbook-title {
   font-size: 20px;
@@ -1614,6 +1616,7 @@ button {
 }
 
 .wb-ex-wrap {
+  position: relative;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px dashed var(--color-border);
@@ -2033,6 +2036,29 @@ button {
 }
 
 .reading-sent.show .anno-zh-sent { display: block; }
+
+/* 句末点读按钮：每句一个，贴在句号后面，默认淡淡的一点，悬停才实心 */
+.reading-sent-speak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: .3rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  vertical-align: middle;
+  opacity: .45;
+  transition: opacity .15s ease, background .15s ease;
+}
+
+.reading-sent-speak:hover { opacity: 1; background: var(--color-primary-light); }
+.reading-sent-speak:active { transform: translateY(1px); }
+.reading-sent-speak svg { width: 16px; height: 16px; }
 
 /* 词级批注：默认不打标（保持干净），悬停到词内任一字符时整词亮起 + 显示词义气泡 */
 .anno-word {

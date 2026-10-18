@@ -12,12 +12,16 @@
     chart: function () { UI.renderChart(); },
     practice: function () { UI.renderPractice(); },
     quiz: function () { UI.renderQuiz(); },
-    reading: function () { UI.renderReading(); }
+    reading: function () { UI.renderReading(); },
+    vocab: function () { Vocab.render(); },
+    video: function () { VideoStudy.render(); }
   };
 
   // 切换页面：更新显示、导航状态，并调用对应渲染
   function navigate(page) {
     if (!RENDERERS[page]) page = 'home';
+    if (page !== 'vocab' && window.Vocab) window.Vocab.stopRead();
+    if (page !== 'video' && window.VideoStudy) window.VideoStudy.stop();
     UI.showPage(page);
     RENDERERS[page]();
   }

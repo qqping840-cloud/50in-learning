@@ -8,7 +8,33 @@ assets/tts/
 assets/audio/words/
 assets/audio/ex/
 
+# 点读按需合成的缓存（tools/tts_one.py 自动生成）
+assets/audio/tts/
+
+# 本地诊断日志（logs/app.jsonl）
+logs/
+
+# 词义缓存（cache/glosses.json）
+cache/
+
+# 视频素材库（几 GB 的 mp4 / 字幕，属个人素材不随代码走）
+subs/
+
+# 本地 agent 工具配置
+.agents/
+
+# 浏览器自动化临时 profile / 抓取缓存
+.tmp-chrome-profile/
+.tmp-chrome-profile-file/
+.playwright-mcp/
+
+# 下载的成品资源包（体积大，按需自己下载）
+officecli-ppt-资源包.zip
+officecli-ppt-资源包说明.txt
+
 # 系统文件
 node_modules/
+desktop.ini
+__pycache__/
 .DS_Store
 Thumbs.db

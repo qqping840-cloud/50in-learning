@@ -1,0 +1,193 @@
+/* 视频跟读页样式。作用域限定在 #page-video / .video-study*，不改全站。 */
+
+#page-video.page.active {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 18px 28px 28px;
+}
+
+/* ---------- 工具栏 ---------- */
+#page-video .video-study-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+#page-video .video-study-import,
+#page-video .video-study-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-card);
+  color: var(--color-text);
+  font: 500 14px var(--font-body);
+  cursor: pointer;
+}
+#page-video .video-study-toggle { border-color: transparent; background: none; padding-left: 4px; }
+#page-video .video-study-import input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+#page-video .video-study-toggle input { accent-color: var(--color-primary); }
+#page-video .video-study-time {
+  margin-left: auto;
+  color: var(--color-text);
+  font: 500 14px var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 成品库选集 ---------- */
+#page-video .video-study-library {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 2px 0;
+}
+#page-video .video-study-library[hidden] { display: none; }
+#page-video .video-study-library-label {
+  flex: none; color: var(--color-text-secondary); font: 500 13px var(--font-body);
+}
+#page-video .video-study-chips {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin;
+}
+#page-video .video-study-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  max-width: 300px; padding: 6px 13px;
+  border: 1px solid var(--color-border); border-radius: 999px;
+  background: var(--color-card); color: var(--color-text);
+  font: 500 14px var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#page-video .video-study-chip:hover { border-color: var(--color-primary); }
+#page-video .video-study-chip.active {
+  border-color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-primary) 14%, var(--color-card));
+}
+#page-video .video-study-chip i {
+  font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 999px;
+  color: var(--color-text-secondary); background: var(--color-border);
+}
+
+/* ---------- 悬停提示（假名 + 中文词义） ---------- */
+#page-video .video-study-tip {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  /* 全局的兄弟间距规则会给它加 margin，锁死，否则位置整体偏低 */
+  margin: 0;
+  max-width: 280px;
+  padding: 6px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-card);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  font: 400 13px/1.45 var(--font-body);
+  color: var(--color-text);
+}
+#page-video .video-study-tip[hidden] { display: none; }
+#page-video .video-study-tip b {
+  display: block;
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  font-family: var(--font-kana);
+}
+#page-video .video-study-tip span { display: block; margin-top: 2px; }
+
+/* ---------- 两栏 ---------- */
+#page-video .video-study-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(340px, .84fr);
+  gap: clamp(20px, 3vw, 44px);
+  align-items: start;
+  padding-top: 22px;
+}
+#page-video .video-study-media { min-width: 0; }
+#page-video .video-study-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: #171b19;
+}
+#page-video .video-study-frame video { display: block; width: 100%; height: 100%; object-fit: contain; }
+#page-video .video-study-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #e8ede9;
+  font-size: 14px;
+  pointer-events: none;
+}
+#page-video .video-study-empty[hidden] { display: none; }
+
+/* ---------- 字幕 ---------- */
+#page-video .video-study-transcript {
+  position: relative;
+  min-width: 0;
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+}
+#page-video .video-study-lines { list-style: none; }
+#page-video .video-study-lines li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+#page-video .video-study-lines li.active { background: color-mix(in oklab, var(--color-primary) 8%, transparent); }
+#page-video .video-study-body { position: relative; z-index: 1; min-width: 0; }
+#page-video .video-study-replay {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+}
+#page-video .video-study-replay svg { width: 16px; height: 16px; }
+#page-video .video-study-replay:hover { background: color-mix(in oklab, var(--color-primary) 24%, var(--color-card)); }
+#page-video .video-study-ja {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  color: var(--color-text);
+  font: 500 20px/1.75 var(--font-kana);
+}
+#page-video .video-study-word { border-radius: 5px; padding: 0 2px; font: inherit; color: inherit; cursor: pointer; }
+#page-video .video-study-word:hover { background: var(--color-primary-light); }
+/* 罗马音：注在词上方（开关关掉时不生成伪元素，不影响行高） */
+#page-video .video-study-lines.show-romaji .video-study-word[data-romaji]::before {
+  content: attr(data-romaji);
+  display: block;
+  color: var(--color-text-secondary);
+  font: 400 11px/1.25 var(--font-body);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+#page-video .video-study-zh {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+#page-video .video-study-lines.hide-zh .video-study-zh { display: none; }
+#page-video .video-study-hint { padding: 14px 0; color: var(--color-text); font-size: 14px; }
+#page-video .video-study-hint[hidden] { display: none; }
+#page-video :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+#page-video .video-study-import:focus-within { outline: 3px solid var(--color-primary); outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  #page-video.page.active { padding: 14px 16px 22px; }
+  #page-video .video-study-columns { grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 14px; }
+  #page-video .video-study-time { margin-left: 0; }
+  #page-video .video-study-transcript { max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #page-video .reading-highlight { transition: none; }
+}

@@ -122,6 +122,7 @@
 
     // 开始学习某个假名：box=1，今天复习
     startLearning: function (hiragana) {
+      if (window.Storage.getKana(hiragana).box >= 1) return;
       window.Storage.updateKana(hiragana, { box: 1, nextReview: todayStr() });
     },
 

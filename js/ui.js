@@ -54,6 +54,7 @@
     // 音表页
     chartType: 'seion',      // seion/dakuon/handakuon/yoon
     chartMerge: false,       // 平假名+片假名合并显示
+    chartRomaji: true,       // 音表罗马音显示
     chartScript: 'hira',     // 未合并时显示的文字：hira/kata
     // 练习页
     practiceMode: 'forward', // forward=看假名想读音, reverse=听发音想字形
@@ -116,6 +117,7 @@
   // 防止快速连续点击时语音堆积/卡死
   var speakTimer = null;
   var curAudio = null;
+  var speakVersion = 0;
 
   // 浏览器 TTS 兜底（本地音频缺失/播放失败时用，如单词读音没有对应 mp3）
   function ttsSpeak(text) {
@@ -132,19 +134,42 @@
     speakTimer = setTimeout(function () { window.speechSynthesis.speak(u); }, 50);
   }
 
-  // 本地音频查找顺序：单词本词音频 -> 单假名音频 -> 浏览器 TTS 兜底
-  function speak(text) {
+  // 本地例句、单词、假名音频优先，缺失时使用浏览器语音。
+  function stopSpeak() {
+    speakVersion++;
     if (speakTimer) clearTimeout(speakTimer);
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (curAudio) { curAudio.pause(); curAudio = null; }
+  }
+  // 悬停预热：服务端按需合成的音频首次要 1 秒左右，提前请求就不卡点击
+  var prefetched = {};
+  function prefetchSpeak(text) {
+    if (!text) return;
+    var url = '/api/tts?text=' + encodeURIComponent(text);
+    if (prefetched[url]) return;
+    prefetched[url] = true;
+    try { fetch(url).catch(function () {}); } catch (e) {}
+  }
+
+  function speak(text) {
+    stopSpeak();
+    var version = speakVersion;
     var enc = encodeURIComponent(text);
     var candidates = [];
+    var exampleIndex = window.OFFLINE && window.OFFLINE.exManifest && window.OFFLINE.exManifest[text];
+    if (Number.isInteger(exampleIndex) && exampleIndex >= 0) {
+      candidates.push('assets/audio/ex/ex-' + exampleIndex + '.mp3');
+    }
     // 1. 单词读音（离线生成，assets/audio/words/<假名>.mp3）
     candidates.push('assets/audio/words/' + enc + '.mp3');
     // 2. 单假名/拗音读音（assets/audio/<假名>.mp3）
     candidates.push('assets/audio/' + enc + '.mp3');
+    // 3. 服务端按需合成（Edge 神经语音，任意词可读，与词库预生成音频同一个人声）
+    candidates.push('/api/tts?text=' + enc);
 
     var i = 0;
     var tryNext = function () {
+      if (version !== speakVersion) return;
       if (i >= candidates.length) { ttsSpeak(text); return; }
       var a = new Audio(candidates[i++]);
       curAudio = a;
@@ -201,7 +226,7 @@
   // ---------- 页面切换 ----------
 
   function showPage(pageName) {
-    ['home', 'learn', 'chart', 'practice', 'quiz', 'reading'].forEach(function (p) {
+    ['home', 'learn', 'chart', 'practice', 'quiz', 'reading', 'vocab', 'video'].forEach(function (p) {
       var page = el('page-' + p);
       if (page) page.classList.toggle('active', p === pageName);
     });
@@ -910,9 +935,10 @@
 
   function renderChart() {
     var mergeInput = el('chart-merge');
+    var romajiInput = el('chart-romaji');
     var tabs = el('chart-tabs');
     var table = el('chart-table');
-    if (!mergeInput || !tabs || !table) return;
+    if (!mergeInput || !romajiInput || !tabs || !table) return;
 
     if (!state.chartType) state.chartType = 'seion';
     if (!state.chartMerge) state.chartMerge = false;
@@ -921,6 +947,7 @@
     var merge = state.chartMerge;
 
     mergeInput.checked = merge;
+    romajiInput.checked = state.chartRomaji;
 
     // 类型切换标签（清音/浊音/半浊音/拗音）
     tabs.innerHTML =
@@ -963,7 +990,7 @@
             badgeHtml +
             '<span class="chart-kana-main">' + esc(k.hiragana) + '</span>' +
             '<span class="chart-kana-sub">' + esc(k.katakana) + '</span>' +
-            '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
+            (state.chartRomaji ? '<span class="chart-romaji">' + esc(k.romaji) + '</span>' : '') +
           '</button>';
         }).join('') + '</div>';
       } else {
@@ -981,7 +1008,7 @@
           return '<button class="chart-cell" data-hiragana="' + esc(k.hiragana) + '">' +
             badgeHtml +
             '<span class="chart-kana">' + esc(char) + '</span>' +
-            '<span class="chart-romaji">' + esc(k.romaji) + '</span>' +
+            (state.chartRomaji ? '<span class="chart-romaji">' + esc(k.romaji) + '</span>' : '') +
           '</button>';
         }).join('') + '</div>';
       }
@@ -1020,6 +1047,11 @@
       state.chartMerge = mergeInput.checked;
       renderChart();
     };
+
+    romajiInput.onchange = function () {
+      state.chartRomaji = romajiInput.checked;
+      renderChart();
+    };
   }
 
   // ---------- 导出 ----------
@@ -1033,6 +1065,8 @@
     renderQuiz: renderQuiz,
     renderReading: function () { if (window.Reading) window.Reading.render(); },
     speak: speak,
+    stopSpeak: stopSpeak,
+    prefetchSpeak: prefetchSpeak,
     initTheme: initTheme,
     updateStreakDisplay: updateStreakDisplay
   };

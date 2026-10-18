@@ -245,22 +245,24 @@
 
   /**
    * 生成错题复习的假名练习文本（纯假名，3~5 个一组用空格分隔）
-   * 只从 weights 的键里出题，权重越高越常出；weights 为空时返回空字符串。
+   * 先覆盖每个错题假名，再按权重补足；weights 为空时返回空字符串。
    * @param {Object} weights { 假名: 权重（错误次数） }
    * @param {number} total 假名个数
    */
   function buildReviewText(weights, total) {
-    var keys = Object.keys(weights);
+    var keys = Object.keys(weights).sort(function (a, b) { return weights[b] - weights[a]; }).slice(0, total);
     if (!keys.length) return '';
-    var seq = [], prev = null;
-    for (var i = 0; i < total; i++) {
-      var c = pickWeighted(weights);
+    var selected = {};
+    keys.forEach(function (k) { selected[k] = weights[k]; });
+    var seq = shuffle(keys), prev = seq[seq.length - 1];
+    for (var i = seq.length; i < total; i++) {
+      var c = pickWeighted(selected);
       // 尽量避免同一假名连续出现（重试上限 20）。
       // 池子里只有 1~2 个假名时，「不连续」会退化成严格交替、把权重抹平，
       // 与「权重越高越常出」冲突，故此时不做去重（仍按权重抽取）。
       if (keys.length > 2 && c === prev) {
         for (var tries = 0; tries < 20; tries++) {
-          var c2 = pickWeighted(weights);
+          var c2 = pickWeighted(selected);
           if (c2 !== prev) { c = c2; break; }
         }
       }

@@ -25,6 +25,8 @@ import sys
 
 import edge_tts
 
+from edge_endpoint import use_new_endpoint, with_retry
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_PATH = os.path.join(ROOT, "js", "library.js")
 OUT_DIR = os.path.join(ROOT, "assets", "tts")
@@ -39,7 +41,8 @@ def read_library_texts(path):
     return re.findall(r"text:\s*'([^']*)'", src)
 
 
-async def synth(text, voice):
+async def _synth_once(text, voice):
+    use_new_endpoint()
     c = edge_tts.Communicate(text, voice, boundary="WordBoundary")
     audio = bytearray()
     words = []
@@ -54,6 +57,10 @@ async def synth(text, voice):
                 "dur": round(chunk["duration"] / 10000),
             })
     return bytes(audio), words
+
+
+async def synth(text, voice):
+    return await with_retry(lambda: _synth_once(text, voice))
 
 
 async def main():

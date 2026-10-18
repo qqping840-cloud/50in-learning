@@ -9,7 +9,6 @@
   var SESSION_KEY = 'kana-typing-sessions-v1'; // 打字会话记录 { seq, list:[{id,startedAt,perKana}] }
   var RANK_KEY = 'kana-typing-rank-v1';    // 每日错题排行快照
   var DECAY = 0.8;                         // 错题分每过一天乘 0.8
-  var CLEAN_TO_CLEAR = 10;                 // 同一假名连续答对 10 次，错题分清零
 
   var DEFAULT_KANA = { box: 0, nextReview: null, correctStreak: 0, totalReviews: 0, lastResult: null, studyCount: 0 };
 
@@ -142,7 +141,7 @@
       e.attempts++;
       if (ok) {
         e.cleanStreak++;
-        if (e.cleanStreak >= CLEAN_TO_CLEAR) e.score = 0;
+        e.score *= 0.85;
       } else {
         e.wrong++;
         e.score += 1;
@@ -163,6 +162,26 @@
       Object.keys(errs).forEach(function (c) {
         var s = decayedScore(errs[c], today);
         if (s >= minScore) out[c] = s;
+      });
+      return out;
+    },
+
+    // 实时复习权重：长期错题分 + 最近两次练习的平滑错误率
+    getTypingReviewWeights: function () {
+      var today = dateStr(new Date()), errs = loadErrors(), recent = {}, out = {};
+      loadSessions().list.slice(-2).forEach(function (s) {
+        Object.keys(s.perKana || {}).forEach(function (c) {
+          var e = s.perKana[c];
+          if (!recent[c]) recent[c] = { attempts: 0, wrong: 0 };
+          recent[c].attempts += e.attempts || 0;
+          recent[c].wrong += e.wrong || 0;
+        });
+      });
+      Object.keys(errs).forEach(function (c) {
+        var score = decayedScore(errs[c], today);
+        if (score < 0.1) return;
+        var r = recent[c];
+        out[c] = Math.min(5, score) + (r ? 3 * r.wrong / (r.attempts + 2) : 0);
       });
       return out;
     },
@@ -238,6 +257,7 @@
       localStorage.removeItem(ERR_KEY);
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(RANK_KEY);
+      localStorage.removeItem('n5-vocabulary-progress-v1');
     }
   };
 })();
