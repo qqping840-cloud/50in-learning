@@ -206,10 +206,10 @@ function buildProgress(courseData) {
     });
 }
 
-function downloadAudio(url, file) {
+function downloadAudio(url, file, force) {
   return new Promise(function (resolve) {
     if (!url) return resolve(false);
-    if (fs.existsSync(file) && fs.statSync(file).size > 500) return resolve(false);
+    if (!force && fs.existsSync(file) && fs.statSync(file).size > 500) return resolve(false);
     var u = new URL(url);
     var req = https.get({ hostname: u.hostname, path: u.pathname + u.search, headers: { 'User-Agent': 'Mozilla/5.0' } }, function (res) {
       if (res.statusCode !== 200) { res.resume(); return resolve(false); }
@@ -266,6 +266,12 @@ async function sync(cfg, onProgress) {
 
   step('下载发音');
   fs.mkdirSync(AUDIO_DIR, { recursive: true });
+  // 上一轮同步记下的远端地址：同一个词如果换了录音，地址会变，就重下
+  var prevSrc = {};
+  try {
+    var cached = readCached();
+    (cached && cached.words || []).forEach(function (x) { if (x.src) prevSrc[x.w] = x.src; });
+  } catch (e) {}
   var audioGot = 0, audioHave = 0;
   var items = [];
   for (var i = 0; i < words.length; i++) {
@@ -275,7 +281,8 @@ async function sync(cfg, onProgress) {
     var file = crypto.createHash('sha1').update(text).digest('hex') + '.mp3';
     var full = path.join(AUDIO_DIR, file);
     var existed = fs.existsSync(full) && fs.statSync(full).size > 500;
-    var ok = await downloadAudio(w.audioURL, full);
+    var changed = !!prevSrc[text] && prevSrc[text] !== w.audioURL;
+    var ok = await downloadAudio(w.audioURL, full, changed);
     if (ok) audioGot++; else if (existed) audioHave++;
     var zh = (w.translations || []).join('；');
     var kr = resolveKanji(text, zh);
@@ -284,6 +291,7 @@ async function sync(cfg, onProgress) {
       zh: zh,
       kanji: kr.kanji || '',
       audio: (ok || existed) ? 'assets/audio/duo/' + file : '',
+      src: w.audioURL || '',
       why: kr.why
     });
     if (i % 20 === 0) step('处理单词 ' + (i + 1) + '/' + words.length);
