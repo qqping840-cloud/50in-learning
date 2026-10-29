@@ -151,6 +151,19 @@
     try { fetch(url).catch(function () {}); } catch (e) {}
   }
 
+  // 播放指定音频文件（多邻国原声等外部音源）；和 speak 共用停止/互斥逻辑，
+  // 所以点读不会两个声音叠在一起。
+  function speakUrl(url) {
+    stopSpeak();
+    if (!url) return;
+    var version = speakVersion;
+    var a = new Audio(url);
+    curAudio = a;
+    var p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(function () { if (curAudio === a) curAudio = null; });
+    if (version !== speakVersion) { try { a.pause(); } catch (e) {} }
+  }
+
   function speak(text) {
     stopSpeak();
     var version = speakVersion;
@@ -1065,6 +1078,7 @@
     renderQuiz: renderQuiz,
     renderReading: function () { if (window.Reading) window.Reading.render(); },
     speak: speak,
+    speakUrl: speakUrl,
     stopSpeak: stopSpeak,
     prefetchSpeak: prefetchSpeak,
     initTheme: initTheme,

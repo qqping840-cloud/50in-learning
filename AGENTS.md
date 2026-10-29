@@ -6,6 +6,7 @@
 
 - **唯一入口**：前端 `UI.speak(text)`（`js/ui.js`）。要加发音的新功能就调它，
   不要自己 `new Audio(...)`，更不要直接调浏览器 `speechSynthesis`。
+  **播放现成音频文件**（多邻国原声那种非合成音源）走 `UI.speakUrl(url)`，同样共用停止逻辑。
 - **查找顺序**（已在 `UI.speak` 里实现，不要改顺序）：
   1. 本地预生成音频：`assets/audio/ex/*.mp3`、`assets/audio/words/<假名>.mp3`、`assets/audio/<假名>.mp3`
   2. 服务端按需合成：`GET /api/tts?text=<词>`（先在词库音频里找，找不到才合成）
@@ -29,6 +30,16 @@
   在失败分支补一个事件，别让它静默失败——前端只显示「有 N 个没成」，日志里才看得到为什么。
 - 用户向文档在 `README.md`（跑起来 / 页面 / 视频页 / 接口 / 工具 / 日志）。
   新增页面、接口或工具时同步补上；第三方来源补 `THIRD_PARTY.md`。
+
+## 多邻国词表（单词页的第二个来源）
+
+- **同步逻辑全在 `duo-sync.js`**（服务端，零依赖），前端只有 `js/duo.js`。别把拉数据的活挪到浏览器：
+  token 在 `config.json` 里，不能进前端。
+- **只读不写**：同步只调多邻国的 GET/POST 读接口，不回写用户数据。
+- **汉字形宁缺勿错**：多个候选（はし＝橋/箸/端）一律留空，不做概率猜测；
+  规则改动后必须跑 `node tools/test_duo_kanji.js`。
+- `assets/data/duolingo-words.json`（个人词表）和 `assets/audio/duo/`（原声）是生成物，**不进 Git**；
+  `assets/data/kana-kanji.json` 是 JMdict 派生数据，要进 Git（换字典要一起更新 `THIRD_PARTY.md`）。
 
 ## 视频页的词义
 

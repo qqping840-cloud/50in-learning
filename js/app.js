@@ -21,6 +21,7 @@
   function navigate(page) {
     if (!RENDERERS[page]) page = 'home';
     if (page !== 'vocab' && window.Vocab) window.Vocab.stopRead();
+    if (page !== 'vocab' && window.DuoVocab) window.DuoVocab.stop();
     if (page !== 'video' && window.VideoStudy) window.VideoStudy.stop();
     UI.showPage(page);
     RENDERERS[page]();

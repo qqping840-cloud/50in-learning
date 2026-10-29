@@ -25,7 +25,10 @@ var DEFAULT_CONFIG = {
   port: 3000,
   temperature: 0.7,
   subtitleDir: path.join(ROOT, 'subs'),
-  ttsVoice: 'ja-JP-NanamiNeural'
+  ttsVoice: 'ja-JP-NanamiNeural',
+  duoToken: '',
+  duoUserId: '',
+  duoCourse: { learning: 'ja', from: 'zh' }
 };
 
 function ensureConfig() {
@@ -724,6 +727,50 @@ function handleTts(req, res, text) {
   });
 }
 
+// ---------- 多邻国单词同步 ----------
+var duo = require('./duo-sync');
+var duoBusy = false;
+
+function handleDuoSync(req, res) {
+  if (duoBusy) {
+    res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: false, error: '正在同步中，稍等一下' }));
+    return;
+  }
+  duoBusy = true;
+  var startedAt = Date.now();
+  var steps = [];
+  var cfg = loadConfig();
+  duo.sync(cfg, function (step) { steps.push(step); })
+    .then(function (r) {
+      duoBusy = false;
+      logEvent('duo_sync', { ok: true, total: r.total, withKanji: r.withKanji, audioNew: r.audioNew, ms: Date.now() - startedAt });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(Object.assign({ ok: true }, r)));
+    }, function (err) {
+      duoBusy = false;
+      logEvent('duo_sync_failed', {
+        ok: false, code: err.code || '', ms: Date.now() - startedAt,
+        reason: (err && err.message ? err.message : String(err)).slice(0, 200)
+      });
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: err && err.message ? err.message : String(err) }));
+    });
+}
+
+function handleDuoStatus(req, res) {
+  var cached = duo.readCached();
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end(JSON.stringify({
+    ok: true,
+    busy: duoBusy,
+    syncedAt: cached ? cached.syncedAt : null,
+    total: cached ? cached.total : 0,
+    withKanji: cached ? cached.withKanji : 0,
+    configured: !!loadConfig().duoToken && !!loadConfig().duoUserId
+  }));
+}
+
 // ---------- 配置接口 ----------
 function handleConfigGet(req, res) {
   var cfg = loadConfig();
@@ -749,6 +796,12 @@ function handleConfigPost(req, res, body) {
   if (typeof partial.temperature === 'number') allowed.temperature = partial.temperature;
   if (typeof partial.subtitleDir === 'string') allowed.subtitleDir = partial.subtitleDir;
   if (typeof partial.ttsVoice === 'string') allowed.ttsVoice = partial.ttsVoice;
+  if (typeof partial.duoToken === 'string') allowed.duoToken = partial.duoToken;
+  if (typeof partial.duoUserId === 'string') allowed.duoUserId = partial.duoUserId;
+  if (partial.duoCourse && typeof partial.duoCourse === 'object' &&
+      typeof partial.duoCourse.learning === 'string' && typeof partial.duoCourse.from === 'string') {
+    allowed.duoCourse = { learning: partial.duoCourse.learning, from: partial.duoCourse.from };
+  }
   saveConfig(allowed);
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify({ ok: true, hasKey: !!loadConfig().deepseekApiKey }));
@@ -785,6 +838,12 @@ var server = http.createServer(function (req, res) {
     req.on('data', function (c) { body3 += c; });
     req.on('end', function () { handleGlossFill(req, res, body3); });
     return;
+  }
+  if (req.method === 'POST' && urlPath === '/api/duo/sync') {
+    handleDuoSync(req, res); return;
+  }
+  if (req.method === 'GET' && urlPath === '/api/duo/status') {
+    handleDuoStatus(req, res); return;
   }
   if (req.method === 'GET' && urlPath === '/api/config') {
     handleConfigGet(req, res); return;

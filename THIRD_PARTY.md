@@ -15,6 +15,19 @@
 参考了 [Anki 调度状态源码](https://github.com/ankitects/anki/blob/main/rslib/src/scheduler/states/mod.rs)，其中区分新卡、学习、复习和重新学习状态。
 本次只导入单词数据，没有复制 Anki 源码，也没有将现有复习算法替换为 FSRS。
 
+# JMdict 汉字形（kana-kanji.json）
+
+多邻国词表补汉字形用 `assets/data/kana-kanji.json`，由 [JMdict](https://www.edrdg.org/jmdict/j_jmdict.html)（Electronic Dictionary Research and Development Group，CC BY-SA 4.0）派生：
+
+- 数据来自 [scriptin/jmdict-simplified](https://github.com/scriptin/jmdict-simplified) 的 `jmdict-eng-common`（3.6.2 版），只用「常用词条 + 常用汉字形」的假名→汉字映射
+- 已剔除助词、代词、叹词、量词等非实词，以及单假名和片段性词条
+- 只保留假名与汉字形的对应关系，未分发释义正文
+- 使用须遵守 JMdict 的 CC BY-SA 4.0：本项目未修改映射内容，仅做了筛选与去重
+
+# 多邻国原声发音
+
+单词页「多邻国」词表的发音是同步时从多邻国（Duolingo）的音频 CDN 下载的原声 mp3，仅作个人学习用途，保存在 `assets/audio/duo/`（不进 Git）。该音频的权利归多邻国所有，不要二次分发。
+
 # 日语朗读语音（edge-tts / Microsoft Edge 朗读）
 
 项目所有日语发音来自微软 Edge 的「大声朗读」语音服务，语音固定为 `ja-JP-NanamiNeural`。

@@ -1,0 +1,33 @@
+/* 单词页来源切换 + 多邻国词表 */
+
+#page-vocab .vocab-source { display: flex; gap: 6px; padding: 4px; margin-bottom: 16px; background: var(--color-border); border-radius: var(--radius-md); }
+#page-vocab .vocab-source button { flex: 1; min-height: 40px; border: 0; border-radius: calc(var(--radius-md) - 4px); background: transparent; color: var(--color-text-secondary); font-size: 15px; font-weight: 600; }
+#page-vocab .vocab-source button.is-active { background: var(--color-card); color: var(--color-text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+
+#page-vocab .duo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+#page-vocab .duo-meta { color: var(--color-text-secondary); font-size: 13px; }
+#page-vocab .duo-meta strong { color: var(--color-text); font-size: 16px; }
+#page-vocab .duo-sync { min-height: 40px; padding: 0 18px; font-size: 14px; }
+#page-vocab .duo-search-row { margin-bottom: 14px; }
+#page-vocab .duo-search { width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-card); color: var(--color-text); font-size: 15px; }
+#page-vocab .duo-search:focus { outline: none; border-color: var(--color-primary); }
+#page-vocab .duo-message { margin-bottom: 12px; font-size: 13px; color: var(--color-text-secondary); }
+#page-vocab .duo-empty { padding: 40px 0; text-align: center; color: var(--color-text-secondary); }
+#page-vocab .duo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+#page-vocab .duo-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--color-card); border: 1px solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+#page-vocab .duo-row:hover { border-color: var(--color-primary); }
+#page-vocab .duo-row.is-playing { border-color: var(--color-primary); background: var(--color-primary-light); }
+#page-vocab .duo-row.is-done { opacity: .45; }
+#page-vocab .duo-body { flex: 1; min-width: 0; }
+#page-vocab .duo-word { font-family: var(--font-kana); font-size: 21px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+#page-vocab .duo-kana { font-family: var(--font-kana); font-size: 13px; color: var(--color-text-secondary); }
+#page-vocab .duo-zh { font-size: 13px; color: var(--color-text-secondary); margin-top: 2px; }
+#page-vocab .duo-speak { width: 40px; height: 40px; flex-shrink: 0; display: grid; place-items: center; border: 1px solid var(--color-border); border-radius: 50%; color: var(--color-primary); background: transparent; }
+#page-vocab .duo-speak svg { width: 20px; height: 20px; }
+#page-vocab .duo-mark { flex-shrink: 0; min-height: 36px; padding: 0 10px; font-size: 12px; color: var(--color-text-secondary); background: transparent; border: 1px solid var(--color-border); border-radius: 999px; }
+#page-vocab .duo-row.is-done .duo-mark { color: var(--color-primary); border-color: var(--color-primary); }
+
+@media (max-width: 420px) {
+  #page-vocab .duo-word { font-size: 19px; }
+  #page-vocab .duo-mark { padding: 0 8px; }
+}

@@ -11,6 +11,10 @@ assets/audio/ex/
 # 点读按需合成的缓存（tools/tts_one.py 自动生成）
 assets/audio/tts/
 
+# 多邻国原声发音 + 同步下来的个人词表（duo-sync.js 生成，属个人数据）
+assets/audio/duo/
+assets/data/duolingo-words.json
+
 # 本地诊断日志（logs/app.jsonl）
 logs/
 

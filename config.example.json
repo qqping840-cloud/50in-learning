@@ -3,5 +3,8 @@
   "model": "deepseek-chat",
   "port": 3000,
   "temperature": 0.7,
-  "subtitleDir": "subs"
+  "subtitleDir": "subs",
+  "duoToken": "",
+  "duoUserId": "",
+  "duoCourse": { "learning": "ja", "from": "zh" }
 }

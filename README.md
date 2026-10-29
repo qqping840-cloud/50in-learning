@@ -17,7 +17,7 @@ start.bat            # 等价于 node server.js
 | 页面 | 说明 |
 |---|---|
 | 首页 / 音表 / 学习 / 练习 / 测验 | 五十音与单词练习、复习 |
-| 单词 | N5 词库（来源与许可见 `THIRD_PARTY.md`） |
+| 单词 | 两个来源：N5 词库（来源与许可见 `THIRD_PARTY.md`）+ 多邻国已学单词（见下） |
 | 阅读 | 文章注音、逐句译文、点词发音、逐句点读（截整篇音频，Nanami，可离线） |
 | 视频 | 左侧原视频 + 右侧日语/译文字幕 |
 
@@ -73,6 +73,50 @@ transcribe --retext "名.srt" --text "名.zh.txt"
 おすまし ごまだんご 四つ子 串だんご    ← 就按这四个词显示
 ```
 
+## 多邻国词表
+
+单词页顶部的「N5 单词 / 多邻国」切换，右边那份是从多邻国直接同步下来的**你自己已学过的词**，点词放的是多邻国原声。
+
+### 同步（一键）
+
+页面上点「更新」即可，走 `POST /api/duo/sync`：读多邻国当前课程进度 → 拉已学词表 → 下载发音 → 补汉字形 → 写 `assets/data/duolingo-words.json`。
+
+需要先在 `config.json` 里放两样东西（**私人，不进 Git**）：
+
+```json
+{
+  "duoToken": "Bearer eyJhbGci...",
+  "duoUserId": "1621482876",
+  "duoCourse": { "learning": "ja", "from": "zh" }
+}
+```
+
+- `duoUserId`：多邻国个人主页 URL 里的那串数字
+- `duoToken`：浏览器登录多邻国后，F12 → Network 里任意一个 `www.duolingo.com` 请求的 `Authorization` 头（这个 JWT 有效期很长，过期了重取一次）
+- `duoCourse`：学什么语言（`learning`）从什么语言（`from`）——换课程就改这两个值
+
+第一次同步要下 159 条发音，约 2 分钟；之后只补新的，20 秒左右。同步只读多邻国数据，不写回。
+
+### 汉字形怎么补的
+
+多邻国只给假名和中文释义，它自己也弱在这块，所以同步时补一次汉字形（`duo-sync.js` 的 `resolveKanji`）：
+
+1. **已经是汉字形的词**（如「新しい」）→ 跳过
+2. **N5 词表里有**（807 词，人工校对过）→ 用词表里的汉字形，并要求**中文释义对得上**（`とし`＝城市 不会被套成「年」）
+3. **否则查 JMdict**（只取常用词条、常用汉字形，排除助词/代词/叹词、单假名）：
+   - 唯一候选 → 用（`まんが → 漫画`）
+   - 多个候选（`はし` 可能是 橋/箸/端）→ **不猜，留空**
+4. **ます 形还原**：`たべます → 食べます`（查 `食べる` 这种辞书形再还原）
+5. 指示词和寒暄语（`ここ`、`こんにちは`、`はじめまして`）现代日语只写假名 → 不补
+
+判据在 `assets/data/kana-kanji.json`（JMdict 常用子集，446KB，离线查，不联网）。改规则后跑一次自检：
+
+```powershell
+node tools/test_duo_kanji.js
+```
+
+「已标记」状态存在浏览器 localStorage（`duo-done`），重跑同步不会丢。
+
 ## 接口
 
 | 接口 | 用途 |
@@ -81,6 +125,8 @@ transcribe --retext "名.srt" --text "名.zh.txt"
 | `GET /api/library/<id>/{media,study,zh,srt}` | 取视频（支持 Range，进度条可拖）或字幕 |
 | `GET /api/tts?text=<词>` | 点读发音：先查词库/假名音频 → 查缓存 → 合成并存本地 |
 | `POST /api/generate`、`POST /api/gloss-fill` | DeepSeek 生成文章 / 词义批注 |
+| `POST /api/duo/sync` | 同步多邻国已学单词（下载发音、补汉字形、写 JSON） |
+| `GET /api/duo/status` | 上次同步时间、词数、是否配置了账号 |
 | `GET`+`POST /api/config` | 读取/保存本地配置（白名单字段） |
 
 ## 工具
@@ -95,11 +141,13 @@ transcribe --retext "名.srt" --text "名.zh.txt"
 | `tools/bake_offline.js` | 离线预生成注音与朗读时间戳（让双击 `index.html` 也能用） |
 | `tools/bake_offline_tts.js` | 只刷新离线朗读时间戳（重跑 `gen_tts.py` 后必跑，否则 file:// 下高亮/逐句点读会对不上音频） |
 | `tools/test_video_study.js` | 视频页字幕解析的自检 |
+| `tools/test_duo_kanji.js` | 多邻国词表汉字形补齐规则的自检 |
 
 自检：
 
 ```powershell
 node tools/test_video_study.js
+node tools/test_duo_kanji.js
 ```
 
 ## 日志
@@ -113,6 +161,8 @@ node tools/test_video_study.js
 | `tts_failed` | 合成失败（含词、耗时、原因摘要） |
 | `library_read_failed` | 字幕库目录读不了 |
 | `library_file_missing` | 请求的字幕/视频不存在 |
+| `duo_sync` | 多邻国同步成功（词数、汉字形数、新下载发音数、耗时） |
+| `duo_sync_failed` | 多邻国同步失败（含 code 与原因摘要，如 token 过期） |
 | `server_error` | 未捕获的服务器异常 |
 
 只记时间、事件、结果、耗时和**那个词**（否则「哪个词没合成出来」无法排查）；不记完整路径、字幕正文、API Key、cookie。前端侧的反馈在页面上：字幕读取失败会显示原因，语音没备齐会提示「有 N 个语音没存上」。

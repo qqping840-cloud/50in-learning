@@ -5,7 +5,28 @@
   var words = [], byId = {}, formCounts = {};
   var showRomaji = true, exampleRomaji = {};
   var exampleContainer = null;
+  var source = 'n5';
   try { showRomaji = localStorage.getItem('vocab-romaji') !== 'off'; } catch (e) {}
+  try { source = localStorage.getItem('vocab-source') === 'duo' ? 'duo' : 'n5'; } catch (e) {}
+
+  // 顶部来源切换：N5 单词 / 多邻国（词表由 duo-sync.js 从多邻国同步下来）
+  function sourceBar(active) {
+    return '<div class="vocab-source" role="tablist" aria-label="词表来源">' +
+      '<button type="button" role="tab" aria-selected="' + (active === 'n5') + '" data-vocab-src="n5" class="' + (active === 'n5' ? 'is-active' : '') + '">N5 单词</button>' +
+      '<button type="button" role="tab" aria-selected="' + (active === 'duo') + '" data-vocab-src="duo" class="' + (active === 'duo' ? 'is-active' : '') + '">多邻国</button>' +
+      '</div>';
+  }
+  function bindSourceBar(page) {
+    page.querySelectorAll('[data-vocab-src]').forEach(function (btn) {
+      btn.onclick = function () {
+        var next = btn.getAttribute('data-vocab-src');
+        if (next === source) return;
+        source = next;
+        try { localStorage.setItem('vocab-source', source); } catch (e) {}
+        render();
+      };
+    });
+  }
 
   function romaji(kana) {
     var library = window.Kuroshiro && (window.Kuroshiro.default || window.Kuroshiro);
@@ -228,13 +249,21 @@
     var page = document.getElementById('page-vocab');
     if (!page) return;
     stopRead();
-    loadWords();
-    if (!words.length || !window.WordSRS) {
-      page.innerHTML = '<p role="alert">单词数据未能加载，请刷新页面。</p>';
+    if (source === 'duo') {
+      page.innerHTML = sourceBar('duo') + '<div id="duo-root" class="duo-root"></div>';
+      bindSourceBar(page);
+      if (window.DuoVocab) window.DuoVocab.render();
       return;
     }
-    page.innerHTML = '<div class="vocab-toolbar"><button type="button" class="vocab-romaji-toggle" data-vocab="romaji" role="switch" aria-checked="' + showRomaji + '"><span>罗马音</span><span class="vocab-toggle-track" aria-hidden="true"></span></button></div>' +
+    loadWords();
+    if (!words.length || !window.WordSRS) {
+      page.innerHTML = sourceBar('n5') + '<p role="alert">单词数据未能加载，请刷新页面。</p>';
+      bindSourceBar(page);
+      return;
+    }
+    page.innerHTML = sourceBar('n5') + '<div class="vocab-toolbar"><button type="button" class="vocab-romaji-toggle" data-vocab="romaji" role="switch" aria-checked="' + showRomaji + '"><span>罗马音</span><span class="vocab-toggle-track" aria-hidden="true"></span></button></div>' +
       (session ? sessionHTML() : homeHTML());
+    bindSourceBar(page);
     page.onclick = handleClick;
     if (showRomaji && window.Reading && window.Reading.toRomaji) {
       page.querySelectorAll('[data-romaji-example]').forEach(function (node) {
